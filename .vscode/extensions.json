@@ -1,0 +1,8 @@
+{
+  "recommendations": [
+    "ms-vscode.cpptools-extension-pack",
+    "eamodio.gitlens",
+    "slevesque.shader",
+    "wayou.vscode-todo-highlight"
+  ]
+}

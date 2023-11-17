@@ -1,0 +1,29 @@
+{
+    "editor.tabSize": 4,
+    "files.insertFinalNewline": true,
+    "workbench.colorTheme": "Visual Studio Dark - C++",
+    "todohighlight.isEnable": true,
+    "todohighlight.keywords": [
+    {
+        "text": "TODO:",
+        "color": "red",
+        "backgroundColor": "rgba(0,0,0,0)",
+        "overviewRulerColor": "rgba(0,0,0,0)"
+    },
+    {
+        "text": "NOTE:",
+        "color": "green",
+        "backgroundColor": "rgba(0,0,0,0)",
+        "overviewRulerColor": "rgba(0,0,0,0)"
+    }
+    ],
+    "todohighlight.exclude": [
+        "**/build/**",
+        "**/.vscode/**"
+    ],
+    "todohighlight.include": [
+        "**/*.cpp",
+        "**/*.h"
+    ],
+    "cmake.options.statusBarVisibility": "visible"
+}
