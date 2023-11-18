@@ -13,7 +13,7 @@
         },
         {
             "type": "cmake",
-            "label": "CMake: clean",
+            "label": "Clean Everything",
             "command": "clean",
             "problemMatcher": [],
             "detail": "CMake template clean task"
