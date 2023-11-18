@@ -1,7 +1,16 @@
-#include "entry.h"
+#include <genesis.h>
 
-#include <iostream>
+class Testbed : public Genesis::Application {
+    public:
+        Testbed() {
 
-std::string createApp() {
-    return "testbed";
+        }
+
+        ~Testbed() {
+
+        }
+};
+
+Genesis::Application* Genesis::createApp() {
+    return new Testbed();
 }
