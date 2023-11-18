@@ -1,7 +1,5 @@
-set(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/bin/)
-
 add_library(genesis
-    SHARED
+    STATIC
     include/entry.h
     src/application.cpp src/application.h
 )

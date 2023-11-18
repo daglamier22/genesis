@@ -13,3 +13,6 @@ target_link_libraries(testbed
     PUBLIC
         genesis
 )
+
+target_compile_options(genesis PRIVATE -Werror)
+target_compile_features(genesis PRIVATE cxx_std_17)
