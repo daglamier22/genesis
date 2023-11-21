@@ -4,7 +4,7 @@ class Testbed : public Genesis::Application {
     public:
         Testbed(std::string applicationName)
             : Application(applicationName) {
-            GN_CLIENT_IFNO("Application created.");
+            GN_CLIENT_INFO("Application created.");
         }
 
         ~Testbed() {
