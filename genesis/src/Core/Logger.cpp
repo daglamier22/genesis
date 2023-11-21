@@ -13,7 +13,6 @@ namespace Genesis {
     }
 
     bool Logger::init(std::string applicationName) {
-#ifdef GN_QUILL_LOGGER
         quill::Config cfg;
         cfg.enable_console_colours = true;
         quill::configure(cfg);
@@ -27,7 +26,7 @@ namespace Genesis {
         std::shared_ptr<quill::Handler> handler2 = quill::stdout_handler();
         handler2->set_pattern("%(ascii_time) [%(thread)] %(logger_name:<10) %(fileline:<28) LOG_%(level_name) %(message)");
         s_clientLogger = std::shared_ptr<quill::Logger>(quill::create_logger(applicationName, std::move(handler2)));
-#endif
+
         return true;
     }
 

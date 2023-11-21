@@ -18,4 +18,3 @@ target_include_directories(genesis
 
 target_compile_options(genesis PRIVATE -Werror)
 target_compile_features(genesis PRIVATE cxx_std_20)
-target_compile_definitions(genesis PUBLIC GN_QUILL_LOGGER)
