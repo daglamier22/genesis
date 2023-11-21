@@ -1,5 +1,16 @@
 cmake_minimum_required(VERSION 3.24.0)
 
+include(FetchContent)
+FetchContent_Declare(quill
+    GIT_REPOSITORY https://github.com/odygrd/quill
+    GIT_TAG v3.4.0
+)
+FetchContent_GetProperties(quill)
+if(NOT quill_POPULATED)
+    FetchContent_Populate(quill)
+    add_subdirectory(${quill_SOURCE_DIR} ${quill_BUILD_DIR})
+endif()
+
 project(genesis VERSION 0.1.0 LANGUAGES C CXX)
 add_subdirectory(genesis genesis)
 

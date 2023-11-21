@@ -4,12 +4,14 @@
             "name": "Linux",
             "includePath": [
                 "${workspaceFolder}/genesis/include/**",
-                "${workspaceFolder}/genesis/src/**"
+                "${workspaceFolder}/genesis/src/**",
+                "${workspaceFolder}/build/_deps/quill-src/quill/include"
             ],
             "defines": [
                 "_DEBUG",
                 "UNICODE",
-                "_GNU_SOURCE"
+                "_GNU_SOURCE",
+                "GN_QUILL_LOGGER"
             ],
             "intelliSenseMode": "linux-gcc-x64",
             "compilerPath": "/usr/bin/g++",
