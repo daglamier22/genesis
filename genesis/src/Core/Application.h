@@ -13,4 +13,4 @@ namespace Genesis {
     };
 
     Application* createApp();
-}
+}  // namespace Genesis

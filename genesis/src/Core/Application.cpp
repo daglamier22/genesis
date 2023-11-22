@@ -13,7 +13,7 @@ namespace Genesis {
     }
 
     void Application::run() {
-        while(true) {
+        while (true) {
         }
     }
-}
+}  // namespace Genesis

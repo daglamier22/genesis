@@ -103,5 +103,9 @@
         "unordered_set": "cpp",
         "regex": "cpp"
     },
-    "C_Cpp.errorSquiggles": "enabled"
+    "C_Cpp.errorSquiggles": "enabled",
+    "C_Cpp.clang_format_fallbackStyle": "Google",
+    "C_Cpp.vcFormat.indent.withinParentheses": "alignToParenthesis",
+    "editor.formatOnSave": true,
+    "editor.formatOnPaste": true
 }

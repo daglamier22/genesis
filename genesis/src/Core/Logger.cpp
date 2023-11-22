@@ -5,11 +5,9 @@ namespace Genesis {
     std::shared_ptr<quill::Logger> Logger::s_clientLogger;
 
     Logger::Logger() {
-
     }
 
     Logger::~Logger() {
-
     }
 
     bool Logger::init(std::string applicationName) {
@@ -41,4 +39,4 @@ namespace Genesis {
             s_clientLogger->set_log_level((quill::LogLevel)newLoggingLevel);
         }
     }
-}
+}  // namespace Genesis
