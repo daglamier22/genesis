@@ -18,3 +18,9 @@ target_include_directories(genesis
 
 target_compile_options(genesis PRIVATE -Werror)
 target_compile_features(genesis PRIVATE cxx_std_20)
+target_precompile_headers(genesis
+    PRIVATE
+        <string>
+        <memory>
+        <quill/Quill.h>
+)

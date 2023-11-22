@@ -14,5 +14,10 @@ target_link_libraries(testbed
         genesis
 )
 
-target_compile_options(genesis PRIVATE -Werror)
-target_compile_features(genesis PRIVATE cxx_std_20)
+target_compile_options(testbed PRIVATE -Werror)
+target_compile_features(testbed PRIVATE cxx_std_20)
+target_precompile_headers(testbed
+    PRIVATE
+        <string>
+        <quill/Quill.h>
+)

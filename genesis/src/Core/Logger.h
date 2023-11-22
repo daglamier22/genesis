@@ -1,7 +1,5 @@
 #pragma once
 
-#include <quill/Quill.h>
-
 namespace Genesis {
     enum LoggingLevel : uint8_t {
         GN_DEBUG       = 3U,
