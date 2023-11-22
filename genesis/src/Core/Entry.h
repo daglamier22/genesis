@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Core/Logger.h"
+#include "Logger.h"
 
 extern Genesis::Application* Genesis::createApp();
 

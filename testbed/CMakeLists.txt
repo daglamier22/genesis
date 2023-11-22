@@ -1,7 +1,7 @@
 set(EXECUTABLE_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/bin/)
 
 add_executable(testbed
-    src/main.cpp
+    src/Main.cpp
 )
 
 target_include_directories(testbed

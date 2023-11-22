@@ -1,8 +1,8 @@
 add_library(genesis
     STATIC
-    include/genesis.h
-    src/entry.h
-    src/application.cpp src/application.h
+    include/Genesis.h
+    src/Core/Entry.h
+    src/Core/Application.cpp src/Core/Application.h
     src/Core/Logger.cpp src/Core/Logger.h
 )
 

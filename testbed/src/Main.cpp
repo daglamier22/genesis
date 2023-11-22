@@ -1,4 +1,4 @@
-#include <genesis.h>
+#include <Genesis.h>
 
 class Testbed : public Genesis::Application {
     public:
