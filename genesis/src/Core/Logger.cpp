@@ -1,8 +1,8 @@
 #include "Logger.h"
 
 namespace Genesis {
-    std::shared_ptr<quill::Logger> Logger::s_coreLogger;
-    std::shared_ptr<quill::Logger> Logger::s_clientLogger;
+    quill::Logger* Logger::s_coreLogger;
+    quill::Logger* Logger::s_clientLogger;
 
     Logger::Logger() {
     }
@@ -19,11 +19,11 @@ namespace Genesis {
 
         std::shared_ptr<quill::Handler> handler = quill::stdout_handler();
         handler->set_pattern("%(ascii_time) [%(thread)] %(logger_name:<10) %(fileline:<28) LOG_%(level_name) %(message)");
-        s_coreLogger = std::shared_ptr<quill::Logger>(quill::create_logger("Genesis", std::move(handler)));
+        s_coreLogger = quill::create_logger("Genesis", std::move(handler));
 
         std::shared_ptr<quill::Handler> handler2 = quill::stdout_handler();
         handler2->set_pattern("%(ascii_time) [%(thread)] %(logger_name:<10) %(fileline:<28) LOG_%(level_name) %(message)");
-        s_clientLogger = std::shared_ptr<quill::Logger>(quill::create_logger(applicationName, std::move(handler2)));
+        s_clientLogger = quill::create_logger(applicationName, std::move(handler2));
 
         return true;
     }

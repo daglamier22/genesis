@@ -18,12 +18,12 @@ namespace Genesis {
             static void setCoreLogLevel(LoggingLevel newLoggingLevel);
             static void setClientLogLevel(LoggingLevel newLoggingLevel);
 
-            inline static std::shared_ptr<quill::Logger> getCoreLogger() { return s_coreLogger; }
-            inline static std::shared_ptr<quill::Logger> getClientLogger() { return s_clientLogger; }
+            inline static quill::Logger* getCoreLogger() { return s_coreLogger; }
+            inline static quill::Logger* getClientLogger() { return s_clientLogger; }
 
         private:
-            static std::shared_ptr<quill::Logger> s_coreLogger;
-            static std::shared_ptr<quill::Logger> s_clientLogger;
+            static quill::Logger* s_coreLogger;
+            static quill::Logger* s_clientLogger;
     };
 }  // namespace Genesis
 
