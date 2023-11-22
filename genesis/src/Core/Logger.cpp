@@ -8,6 +8,12 @@ namespace Genesis {
     }
 
     Logger::~Logger() {
+        if (s_clientLogger) {
+            delete s_clientLogger;
+        }
+        if (s_coreLogger) {
+            delete s_coreLogger;
+        }
     }
 
     bool Logger::init(std::string applicationName) {
