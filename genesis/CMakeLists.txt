@@ -1,12 +1,15 @@
 add_library(genesis
     STATIC
     include/Genesis.h
-    src/Core/Entry.h
     src/Core/Application.cpp src/Core/Application.h
+    src/Core/Entry.h
     src/Core/Logger.cpp src/Core/Logger.h
+    src/Core/Window.cpp src/Core/Window.h
+    src/Platform/LinuxWindow.cpp src/Platform/LinuxWindow.h
+    src/Platform/PlatformDetection.h
 )
 
-target_link_libraries(genesis quill)
+target_link_libraries(genesis quill xcb xcb-util xcb-keysyms)
 
 target_include_directories(genesis
     PUBLIC
