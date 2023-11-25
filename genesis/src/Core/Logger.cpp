@@ -31,7 +31,7 @@ namespace Genesis {
         handler2->set_pattern("%(ascii_time) [%(thread)] %(logger_name:<10) %(fileline:<28) LOG_%(level_name) %(message)");
         s_clientLogger = quill::create_logger(applicationName, std::move(handler2));
 
-        // setCoreLogLevel(GN_LOGLEVEL_TRACE); // uncomment to get engine side trace logging
+        // setCoreLogLevel(LoggingLevel::GN_LOGLEVEL_TRACE);  // uncomment to get engine side trace logging
 
         return true;
     }
