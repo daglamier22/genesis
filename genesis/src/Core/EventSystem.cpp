@@ -9,7 +9,7 @@ namespace Genesis {
     void EventSystem::registerEvent(EventType type, void* listener, const std::function<void(Event&)>& callback) {
         for (auto it = s_registeredEvents[(int)type].m_registeredListeners.begin(); it != s_registeredEvents[(int)type].m_registeredListeners.end(); ++it) {
             if ((*it)->m_listener == listener) {
-                GN_CORE_WARNING("Event ({d}) already registered for this listener {s}", (int)type);
+                GN_CORE_WARNING("Event ({s}) already registered for this listener", GETEVENTTYPESTR(type));
                 return;
             }
         }
@@ -28,7 +28,7 @@ namespace Genesis {
                 return;
             }
         }
-        GN_CORE_WARNING("Event ({d}) was not registered before attempting to unregister for this listener", (int)type);
+        GN_CORE_WARNING("Event ({s}) was not registered before attempting to unregister for this listener", GETEVENTTYPESTR(type));
     }
 
     void EventSystem::fireEvent(Event& e) {
