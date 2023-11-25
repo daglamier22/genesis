@@ -6,6 +6,9 @@ namespace Genesis {
         WindowClose,
         WindowResize,
         MouseMove,
+        MouseScroll,
+        MouseButton,
+        Key,
         // This should always be last as a way to get the total number of event types
         MAX_EVENT_TYPES
     };

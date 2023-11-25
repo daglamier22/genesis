@@ -25,7 +25,7 @@ namespace Genesis {
             MouseScrollEvent(const float xOffset, const float yOffset) : m_xOffset(xOffset), m_yOffset(yOffset) {
             }
 
-            virtual EventType getEventType() const override { return EventType::MouseMove; }
+            virtual EventType getEventType() const override { return EventType::MouseScroll; }
             virtual std::string toString() const override {
                 std::stringstream ss;
                 ss << "MouseScroll: " << m_xOffset << ", " << m_yOffset;
@@ -42,7 +42,7 @@ namespace Genesis {
             MouseButtonEvent(const int button, const bool pressed) : m_button(button), m_pressed(pressed) {
             }
 
-            virtual EventType getEventType() const override { return EventType::MouseMove; }
+            virtual EventType getEventType() const override { return EventType::MouseButton; }
             virtual std::string toString() const override {
                 std::stringstream ss;
                 ss << "MouseButton: " << m_button << " " << m_pressed ? "pressed" : "released";
