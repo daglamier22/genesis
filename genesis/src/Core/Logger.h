@@ -1,7 +1,7 @@
 #pragma once
 
 namespace Genesis {
-    enum LoggingLevel : uint8_t {
+    enum class LoggingLevel : uint8_t {
         GN_LOGLEVEL_TRACE = 2U,
         GN_LOGLEVEL_DEBUG = 3U,
         GN_LOGLEVEL_INFO = 4U,

@@ -2,7 +2,11 @@
 
 #include <iostream>
 
+#include "Core/EventSystem.h"
 #include "Core/Logger.h"
+#include "Events/ApplicationEvents.h"
+#include "Events/KeyboardEvents.h"
+#include "Events/MouseEvents.h"
 
 namespace Genesis {
     LinuxWindow::LinuxWindow(const WindowCreationProperties properties) {
@@ -112,8 +116,7 @@ namespace Genesis {
         }
     }
 
-    bool LinuxWindow::onUpdate() {
-        bool quit = false;
+    void LinuxWindow::onUpdate() {
         xcb_generic_event_t* event;
         while ((event = xcb_poll_for_event(m_connection))) {
             switch (XCB_EVENT_RESPONSE_TYPE(event)) {
@@ -128,9 +131,15 @@ namespace Genesis {
                     ss << std::hex << keySym;
                     GN_CORE_INFO("Key {s}: {d} {X}", keyPressed ? "Pressed" : "Released", keyEvent->detail, ss.str());
                     std::cout << std::hex << keySym << std::endl;
+
+                    // TODO: this is temp test code, delete after input system in place
                     if (keySym == XK_Escape) {
-                        quit = true;
+                        WindowCloseEvent newEvent;
+                        EventSystem::fireEvent(newEvent);
                     }
+
+                    KeyEvent keyboardEvent(keySym, keyPressed);
+                    EventSystem::fireEvent(keyboardEvent);
                 } break;
                 case XCB_BUTTON_PRESS:
                 case XCB_BUTTON_RELEASE: {
@@ -147,10 +156,14 @@ namespace Genesis {
                             GN_CORE_INFO("Right Mouse Button {s}", buttonPressed ? "Pressed" : "Released");
                         } break;
                     }
+                    MouseButtonEvent mouseEvent(buttonEvent->detail, buttonPressed);
+                    EventSystem::fireEvent(mouseEvent);
                 } break;
                 case XCB_MOTION_NOTIFY: {
                     xcb_motion_notify_event_t* mouseEvent = (xcb_motion_notify_event_t*)event;
                     GN_CORE_INFO("Mouse Moved: {i} {i}", mouseEvent->event_x, mouseEvent->event_y);
+                    MouseMoveEvent moveEvent(mouseEvent->event_x, mouseEvent->event_y);
+                    EventSystem::fireEvent(moveEvent);
                 } break;
                 case XCB_EXPOSE: {
                     GN_CORE_INFO("Window Exposed");
@@ -160,7 +173,8 @@ namespace Genesis {
 
                     // Window close
                     if (clientMessage->data.data32[0] == m_windowManagerDeleteWindowAtom) {
-                        quit = true;
+                        WindowCloseEvent closeEvent;
+                        EventSystem::fireEvent(closeEvent);
                     }
                 } break;
                 case XCB_CONFIGURE_NOTIFY: {
@@ -175,11 +189,12 @@ namespace Genesis {
                         m_x = configureEvent->x;
                         m_y = configureEvent->y;
                     }
+                    WindowResizeEvent resizeEvent(configureEvent->width, configureEvent->height);
+                    EventSystem::fireEvent(resizeEvent);
                 } break;
                 default:
                     break;
             }
         }
-        return !quit;
     }
 }  // namespace Genesis

@@ -17,7 +17,7 @@ namespace Genesis {
 
             void init(const WindowCreationProperties properties);
             void shutdown();
-            virtual bool onUpdate();
+            virtual void onUpdate();
 
         private:
             std::string m_title;

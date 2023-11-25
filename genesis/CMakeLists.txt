@@ -3,8 +3,13 @@ add_library(genesis
     include/Genesis.h
     src/Core/Application.cpp src/Core/Application.h
     src/Core/Entry.h
+    src/Core/EventSystem.cpp src/Core/EventSystem.h
     src/Core/Logger.cpp src/Core/Logger.h
     src/Core/Window.cpp src/Core/Window.h
+    src/Events/Event.h
+    src/Events/ApplicationEvents.h
+    src/Events/KeyboardEvents.h
+    src/Events/MouseEvents.h
     src/Platform/LinuxWindow.cpp src/Platform/LinuxWindow.h
     src/Platform/PlatformDetection.h
 )

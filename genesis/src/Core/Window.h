@@ -17,7 +17,7 @@ namespace Genesis {
 
     class Window {
         public:
-            virtual bool onUpdate() = 0;
+            virtual void onUpdate() = 0;
 
             static std::unique_ptr<Window> create(const WindowCreationProperties properties = WindowCreationProperties());
     };
