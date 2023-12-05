@@ -5,6 +5,7 @@
 namespace Genesis {
 // Borrowed from Cherno's Hazel engine after having difficulty figuring out the function binding logic
 #define GN_BIND_EVENT_FN(fn) [this](auto&&... args) -> decltype(auto) { return this->fn(std::forward<decltype(args)>(args)...); }
+#define GN_BIND_EVENT_FN_STATIC(fn) [](auto&&... args) -> decltype(auto) { return fn(std::forward<decltype(args)>(args)...); }
 
     struct RegisteredListener {
             void* m_listener;

@@ -1,12 +1,11 @@
 #pragma once
 
-// #include <X11/XKBlib.h>
 #include <X11/keysym.h>
 #include <xcb/xcb.h>
 #include <xcb/xcb_keysyms.h>
 #include <xcb/xcb_util.h>
-// #include <xcb/xkb.h>
 
+#include "Core/InputSystem.h"
 #include "Core/Window.h"
 
 namespace Genesis {
@@ -20,6 +19,10 @@ namespace Genesis {
             virtual void onUpdate();
 
         private:
+            Key translateKey(xcb_keysym_t key);
+            Button translateButton(xcb_button_t button);
+            int16_t translateScroll(xcb_button_t button);
+
             std::string m_title;
             int16_t m_x;
             int16_t m_y;

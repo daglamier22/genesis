@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../Events/ApplicationEvents.h"
+#include "InputSystem.h"
 #include "Window.h"
 
 namespace Genesis {
@@ -20,6 +21,7 @@ namespace Genesis {
             std::string m_applicationName;
             bool m_isRunning;
             std::unique_ptr<Window> m_window;
+            std::unique_ptr<InputSystem> m_inputSystem;
     };
 
     Application* createApp();

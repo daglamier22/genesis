@@ -4,6 +4,9 @@ add_library(genesis
     src/Core/Application.cpp src/Core/Application.h
     src/Core/Entry.h
     src/Core/EventSystem.cpp src/Core/EventSystem.h
+    src/Core/InputSystem.cpp src/Core/InputSystem.h
+    src/Core/Keyboard.cpp src/Core/Keyboard.h
+    src/Core/Mouse.cpp src/Core/Mouse.h
     src/Core/Logger.cpp src/Core/Logger.h
     src/Core/Window.cpp src/Core/Window.h
     src/Events/Event.h
