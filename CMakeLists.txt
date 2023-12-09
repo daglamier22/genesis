@@ -5,11 +5,7 @@ FetchContent_Declare(quill
     GIT_REPOSITORY https://github.com/odygrd/quill
     GIT_TAG v3.4.0
 )
-FetchContent_GetProperties(quill)
-if(NOT quill_POPULATED)
-    FetchContent_Populate(quill)
-    add_subdirectory(${quill_SOURCE_DIR} ${quill_BUILD_DIR})
-endif()
+FetchContent_MakeAvailable(quill)
 
 project(genesis VERSION 0.1.0 LANGUAGES C CXX)
 add_subdirectory(genesis genesis)
