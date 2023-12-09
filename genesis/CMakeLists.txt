@@ -17,7 +17,7 @@ add_library(genesis
     src/Platform/PlatformDetection.h
 )
 
-target_link_libraries(genesis quill xcb xcb-util xcb-keysyms glfw glm)
+target_link_libraries(genesis quill xcb xcb-util xcb-keysyms glfw glm vulkan)
 
 target_include_directories(genesis
     PUBLIC
