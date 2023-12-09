@@ -15,6 +15,13 @@ FetchContent_Declare(glfw
 )
 FetchContent_MakeAvailable(glfw)
 
+# fetch glm for shader math
+FetchContent_Declare(glm
+    GIT_REPOSITORY https://github.com/g-truc/glm.git
+    GIT_TAG 0.9.9.8
+)
+FetchContent_MakeAvailable(glm)
+
 project(genesis VERSION 0.1.0 LANGUAGES C CXX)
 add_subdirectory(genesis genesis)
 
