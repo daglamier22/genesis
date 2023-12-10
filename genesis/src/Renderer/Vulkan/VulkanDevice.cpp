@@ -9,7 +9,7 @@ namespace Genesis {
     VulkanDevice::~VulkanDevice() {
     }
 
-    bool VulkanDevice::pickPhysicalDevice(VkInstance instance) {
+    bool VulkanDevice::pickPhysicalDevice(VkInstance instance, VkSurfaceKHR surface) {
         uint32_t deviceCount = 0;
         vkEnumeratePhysicalDevices(instance, &deviceCount, nullptr);
         if (deviceCount == 0) {
@@ -20,7 +20,7 @@ namespace Genesis {
         std::vector<VkPhysicalDevice> devices(deviceCount);
         vkEnumeratePhysicalDevices(instance, &deviceCount, devices.data());
         for (const auto& device : devices) {
-            if (isDeviceSuitable(device)) {
+            if (isDeviceSuitable(device, surface)) {
                 m_physicalDevice = device;
                 break;
             }
@@ -35,13 +35,13 @@ namespace Genesis {
         return true;
     }
 
-    bool VulkanDevice::isDeviceSuitable(VkPhysicalDevice device) {
-        QueueFamilyIndices indices = findQueueFamilies(device);
+    bool VulkanDevice::isDeviceSuitable(VkPhysicalDevice device, VkSurfaceKHR surface) {
+        QueueFamilyIndices indices = findQueueFamilies(device, surface);
 
         return indices.isComplete();
     }
 
-    VulkanDevice::QueueFamilyIndices VulkanDevice::findQueueFamilies(VkPhysicalDevice device) {
+    VulkanDevice::QueueFamilyIndices VulkanDevice::findQueueFamilies(VkPhysicalDevice device, VkSurfaceKHR surface) {
         QueueFamilyIndices indices;
 
         uint32_t queueFamilyCount = 0;
@@ -56,6 +56,12 @@ namespace Genesis {
                 indices.graphicsFamily = i;
             }
 
+            VkBool32 presentSupport = false;
+            vkGetPhysicalDeviceSurfaceSupportKHR(device, i, surface, &presentSupport);
+            if (presentSupport) {
+                indices.presentFamily = i;
+            }
+
             if (indices.isComplete()) {
                 break;
             }
@@ -66,23 +72,30 @@ namespace Genesis {
         return indices;
     }
 
-    bool VulkanDevice::createLogicalDevice() {
-        QueueFamilyIndices indices = findQueueFamilies(m_physicalDevice);
+    bool VulkanDevice::createLogicalDevice(VkSurfaceKHR surface) {
+        QueueFamilyIndices indices = findQueueFamilies(m_physicalDevice, surface);
 
-        VkDeviceQueueCreateInfo queueCreateInfo{};
-        queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-        queueCreateInfo.queueFamilyIndex = indices.graphicsFamily.value();
-        queueCreateInfo.queueCount = 1;
+        std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
+        std::set<uint32_t> uniqueQueueFamilies = {
+            indices.graphicsFamily.value(),
+            indices.presentFamily.value()};
 
         float queuePriority = 1.0f;
-        queueCreateInfo.pQueuePriorities = &queuePriority;
+        for (uint32_t queueFamily : uniqueQueueFamilies) {
+            VkDeviceQueueCreateInfo queueCreateInfo{};
+            queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+            queueCreateInfo.queueFamilyIndex = queueFamily;
+            queueCreateInfo.queueCount = 1;
+            queueCreateInfo.pQueuePriorities = &queuePriority;
+            queueCreateInfos.push_back(queueCreateInfo);
+        }
 
         VkPhysicalDeviceFeatures deviceFeatures{};
 
         VkDeviceCreateInfo createInfo{};
         createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-        createInfo.pQueueCreateInfos = &queueCreateInfo;
-        createInfo.queueCreateInfoCount = 1;
+        createInfo.pQueueCreateInfos = queueCreateInfos.data();
+        createInfo.queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size());
         createInfo.pEnabledFeatures = &deviceFeatures;
 
         if (vkCreateDevice(m_physicalDevice, &createInfo, nullptr, &m_device) != VK_SUCCESS) {
@@ -91,6 +104,7 @@ namespace Genesis {
         }
 
         vkGetDeviceQueue(m_device, indices.graphicsFamily.value(), 0, &m_graphicsQueue);
+        vkGetDeviceQueue(m_device, indices.presentFamily.value(), 0, &m_presentQueue);
 
         GN_CORE_INFO("Vulkan logical device created.");
         return true;

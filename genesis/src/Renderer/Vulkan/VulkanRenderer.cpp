@@ -22,10 +22,10 @@ namespace Genesis {
         if (!createSurface(glfwWindow)) {
             return;
         }
-        if (!m_vkDevice.pickPhysicalDevice(m_vkInstance)) {
+        if (!m_vkDevice.pickPhysicalDevice(m_vkInstance, m_vkSurface)) {
             return;
         }
-        if (!m_vkDevice.createLogicalDevice()) {
+        if (!m_vkDevice.createLogicalDevice(m_vkSurface)) {
             return;
         }
     }
