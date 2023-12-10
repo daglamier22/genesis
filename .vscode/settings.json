@@ -101,7 +101,10 @@
         "csignal": "cpp",
         "bitset": "cpp",
         "unordered_set": "cpp",
-        "regex": "cpp"
+        "regex": "cpp",
+        "forward_list": "cpp",
+        "shared_mutex": "cpp",
+        "typeindex": "cpp"
     },
     "C_Cpp.errorSquiggles": "enabled",
     "C_Cpp.clang_format_fallbackStyle": "Google",

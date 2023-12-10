@@ -1,37 +1,41 @@
 #include "VulkanRenderer.h"
 
 #include "Core/Logger.h"
-#include "Platform/GLFWWindow.h"
 
 namespace Genesis {
-    VulkanRenderer::VulkanRenderer() {
-        init();
+    VulkanRenderer::VulkanRenderer(std::shared_ptr<Window> window) : Renderer(window) {
+        init(window);
     }
 
     VulkanRenderer::~VulkanRenderer() {
         shutdown();
     }
 
-    void VulkanRenderer::init() {
+    void VulkanRenderer::init(std::shared_ptr<Window> window) {
+        std::shared_ptr<GLFWWindow> glfwWindow = std::dynamic_pointer_cast<GLFWWindow>(window);
         if (!createInstance()) {
             return;
         }
         if (!setupDebugMessenger()) {
             return;
         }
-        if (!m_vulkanDevice.pickPhysicalDevice(m_vkInstance)) {
+        if (!createSurface(glfwWindow)) {
             return;
         }
-        if (!m_vulkanDevice.createLogicalDevice()) {
+        if (!m_vkDevice.pickPhysicalDevice(m_vkInstance)) {
+            return;
+        }
+        if (!m_vkDevice.createLogicalDevice()) {
             return;
         }
     }
 
     void VulkanRenderer::shutdown() {
-        m_vulkanDevice.shutdown();
+        m_vkDevice.shutdown();
         if (m_enableValidationLayers) {
             VulkanRenderer::destroyDebugUtilsMessengerEXT(m_vkInstance, m_debugMessenger, nullptr);
         }
+        vkDestroySurfaceKHR(m_vkInstance, m_vkSurface, nullptr);
         vkDestroyInstance(m_vkInstance, nullptr);
     }
 
@@ -118,6 +122,16 @@ namespace Genesis {
         }
 
         return extensions;
+    }
+
+    bool VulkanRenderer::createSurface(std::shared_ptr<GLFWWindow> window) {
+        if (glfwCreateWindowSurface(m_vkInstance, (GLFWwindow*)window->getWindow(), nullptr, &m_vkSurface) != VK_SUCCESS) {
+            GN_CORE_ERROR("Failed to create window surface.");
+            return false;
+        }
+
+        GN_CORE_INFO("Vulkan surface created successfully.");
+        return true;
     }
 
     VKAPI_ATTR VkBool32 VKAPI_CALL VulkanRenderer::debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,

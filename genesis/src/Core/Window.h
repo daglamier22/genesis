@@ -20,6 +20,8 @@ namespace Genesis {
             virtual ~Window() {}
             virtual void onUpdate() = 0;
 
-            static std::unique_ptr<Window> create(const WindowCreationProperties properties = WindowCreationProperties());
+            virtual void* getWindow() { return 0; }
+
+            static std::shared_ptr<Window> create(const WindowCreationProperties properties = WindowCreationProperties());
     };
 }  // namespace Genesis

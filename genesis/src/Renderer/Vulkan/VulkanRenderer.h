@@ -4,21 +4,28 @@
 
 #include "Core/Logger.h"
 #include "Core/Renderer.h"
+#include "Platform/GLFWWindow.h"
 #include "VulkanDevice.h"
 
 namespace Genesis {
     class VulkanRenderer : public Renderer {
         public:
-            VulkanRenderer();
+            VulkanRenderer(std::shared_ptr<Window> window);
             ~VulkanRenderer();
 
-            void init();
+            void init(std::shared_ptr<Window> window);
             void shutdown();
 
         private:
+            // VulkanRenderer() {}
             bool createInstance();
             bool checkValidationLayerSupport();
             std::vector<const char*> getRequiredExtensions();
+            bool createSurface(std::shared_ptr<GLFWWindow> window);
+
+            VkInstance m_vkInstance;
+            VkSurfaceKHR m_vkSurface;
+            VulkanDevice m_vkDevice;
 
             // Setup Debug Messenger
             bool setupDebugMessenger();
@@ -38,9 +45,7 @@ namespace Genesis {
                 VkDebugUtilsMessengerEXT debugMessenger,
                 const VkAllocationCallbacks* pAllocator);
 
-            VkInstance m_vkInstance;
             VkDebugUtilsMessengerEXT m_debugMessenger;
-            VulkanDevice m_vulkanDevice;
 
             const std::vector<const char*> m_validationLayers = {"VK_LAYER_KHRONOS_validation"};
 #ifdef NDEBUG

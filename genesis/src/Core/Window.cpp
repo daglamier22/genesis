@@ -10,7 +10,7 @@
 #endif
 
 namespace Genesis {
-    std::unique_ptr<Window> Window::create(const WindowCreationProperties properties) {
+    std::shared_ptr<Window> Window::create(const WindowCreationProperties properties) {
 #ifdef GN_PLATFORM_LINUX
         return std::make_unique<GLFWWindow>(properties);
 #else

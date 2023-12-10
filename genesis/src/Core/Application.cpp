@@ -20,7 +20,7 @@ namespace Genesis {
         EventSystem::registerEvent(EventType::WindowClose, this, GN_BIND_EVENT_FN(Application::onCloseEvent));
         EventSystem::registerEvent(EventType::WindowResize, this, GN_BIND_EVENT_FN(Application::onResizeEvent));
         m_inputSystem = std::make_unique<InputSystem>();
-        m_renderer = std::make_unique<VulkanRenderer>();
+        m_renderer = std::make_unique<VulkanRenderer>(m_window);
         m_isRunning = true;
     }
 
