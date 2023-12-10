@@ -15,12 +15,12 @@ namespace Genesis {
             void shutdown();
 
         private:
-            void createInstance();
+            bool createInstance();
             bool checkValidationLayerSupport();
             std::vector<const char*> getRequiredExtensions();
 
             // Setup Debug Messenger
-            void setupDebugMessenger();
+            bool setupDebugMessenger();
             void populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo);
             static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
                 VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
@@ -37,11 +37,24 @@ namespace Genesis {
                 VkDebugUtilsMessengerEXT debugMessenger,
                 const VkAllocationCallbacks* pAllocator);
 
+            // Select physical device and Queue families
+            bool pickPhysicalDevice();
+            bool isDeviceSuitable(VkPhysicalDevice device);
+
+            struct QueueFamilyIndices {
+                    std::optional<uint32_t> graphicsFamily;
+
+                    bool isComplete() {
+                        return graphicsFamily.has_value();
+                    }
+            };
+            QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device);
+
             VkInstance m_vkInstance;
             VkDebugUtilsMessengerEXT m_debugMessenger;
+            VkPhysicalDevice m_physicalDevice = VK_NULL_HANDLE;
 
-            const std::vector<const char*> m_validationLayers = {
-                "VK_LAYER_KHRONOS_validation"};
+            const std::vector<const char*> m_validationLayers = {"VK_LAYER_KHRONOS_validation"};
 #ifdef NDEBUG
             const bool m_enableValidationLayers = false;
 #else

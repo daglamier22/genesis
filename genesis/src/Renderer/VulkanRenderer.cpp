@@ -13,8 +13,15 @@ namespace Genesis {
     }
 
     void VulkanRenderer::init() {
-        createInstance();
-        setupDebugMessenger();
+        if (!createInstance()) {
+            return;
+        }
+        if (!setupDebugMessenger()) {
+            return;
+        }
+        if (!pickPhysicalDevice()) {
+            return;
+        }
     }
 
     void VulkanRenderer::shutdown() {
@@ -24,9 +31,10 @@ namespace Genesis {
         vkDestroyInstance(m_vkInstance, nullptr);
     }
 
-    void VulkanRenderer::createInstance() {
+    bool VulkanRenderer::createInstance() {
         if (m_enableValidationLayers && !checkValidationLayerSupport()) {
             GN_CORE_ERROR("Validation layers requested, but not available.");
+            return false;
         }
 
         VkApplicationInfo appInfo{};
@@ -62,9 +70,10 @@ namespace Genesis {
 
         if (vkCreateInstance(&createInfo, nullptr, &m_vkInstance) != VK_SUCCESS) {
             GN_CORE_ERROR("Unable to create Vulkan instance.");
-            return;
+            return false;
         }
         GN_CORE_INFO("Vulkan instnce created successfully.");
+        return true;
     }
 
     bool VulkanRenderer::checkValidationLayerSupport() {
@@ -139,9 +148,9 @@ namespace Genesis {
         }
     }
 
-    void VulkanRenderer::setupDebugMessenger() {
+    bool VulkanRenderer::setupDebugMessenger() {
         if (!m_enableValidationLayers) {
-            return;
+            return true;
         }
 
         VkDebugUtilsMessengerCreateInfoEXT createInfo{};
@@ -149,7 +158,10 @@ namespace Genesis {
 
         if (VulkanRenderer::createDebugUtilsMessengerEXT(m_vkInstance, &createInfo, nullptr, &m_debugMessenger) != VK_SUCCESS) {
             GN_CORE_ERROR("Failed to setup debug messenger.");
+            return false;
         }
+
+        return true;
     }
 
     void VulkanRenderer::populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo) {
@@ -158,5 +170,61 @@ namespace Genesis {
         createInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
         createInfo.pfnUserCallback = VulkanRenderer::debugCallback;
         createInfo.pUserData = nullptr;
+    }
+
+    bool VulkanRenderer::pickPhysicalDevice() {
+        uint32_t deviceCount = 0;
+        vkEnumeratePhysicalDevices(m_vkInstance, &deviceCount, nullptr);
+        if (deviceCount == 0) {
+            GN_CORE_ERROR("Failed to find GPUs with Vulkan support.");
+            return false;
+        }
+
+        std::vector<VkPhysicalDevice> devices(deviceCount);
+        vkEnumeratePhysicalDevices(m_vkInstance, &deviceCount, devices.data());
+        for (const auto& device : devices) {
+            if (isDeviceSuitable(device)) {
+                m_physicalDevice = device;
+                break;
+            }
+        }
+
+        if (m_physicalDevice == VK_NULL_HANDLE) {
+            GN_CORE_ERROR("Failed to find a suitable GPU.");
+            return false;
+        }
+
+        return true;
+    }
+
+    bool VulkanRenderer::isDeviceSuitable(VkPhysicalDevice device) {
+        QueueFamilyIndices indices = findQueueFamilies(device);
+
+        return indices.isComplete();
+    }
+
+    VulkanRenderer::QueueFamilyIndices VulkanRenderer::findQueueFamilies(VkPhysicalDevice device) {
+        QueueFamilyIndices indices;
+
+        uint32_t queueFamilyCount = 0;
+        vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, nullptr);
+
+        std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
+        vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, queueFamilies.data());
+
+        int i = 0;
+        for (const auto& queueFamily : queueFamilies) {
+            if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT) {
+                indices.graphicsFamily = i;
+            }
+
+            if (indices.isComplete()) {
+                break;
+            }
+
+            i++;
+        }
+
+        return indices;
     }
 }  // namespace Genesis
