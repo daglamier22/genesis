@@ -14,7 +14,9 @@ add_library(genesis
     src/Events/KeyboardEvents.h
     src/Events/MouseEvents.h
     src/Platform/LinuxWindow.cpp src/Platform/LinuxWindow.h
+    src/Platform/GLFWWindow.cpp src/Platform/GLFWWindow.h
     src/Platform/PlatformDetection.h
+    src/Renderer/VulkanRenderer.cpp src/Renderer/VulkanRenderer.h
 )
 
 target_link_libraries(genesis quill xcb xcb-util xcb-keysyms glfw glm vulkan)
@@ -25,6 +27,9 @@ target_include_directories(genesis
     PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src
         ${quill_SOURCE_DIR}/quill/include
+        ${glfw_SOURCE_DIR}/include
+        ${glm_SOURCE_DIR}/glm
+        ${Vulkan_INCLUDE_DIR}
 )
 
 target_compile_options(genesis PRIVATE -Werror)
@@ -34,4 +39,5 @@ target_precompile_headers(genesis
         <string>
         <memory>
         <quill/Quill.h>
+        <vulkan/vulkan.h>
 )

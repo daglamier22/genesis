@@ -12,7 +12,7 @@ namespace Genesis {
     class LinuxWindow : public Window {
         public:
             LinuxWindow(const WindowCreationProperties properties);
-            ~LinuxWindow();
+            virtual ~LinuxWindow();
 
             void init(const WindowCreationProperties properties);
             void shutdown();

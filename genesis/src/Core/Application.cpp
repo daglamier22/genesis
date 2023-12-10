@@ -1,5 +1,6 @@
 #include "Application.h"
 
+#include "../Renderer/VulkanRenderer.h"
 #include "Core/EventSystem.h"
 #include "Core/Logger.h"
 
@@ -19,11 +20,13 @@ namespace Genesis {
         EventSystem::registerEvent(EventType::WindowClose, this, GN_BIND_EVENT_FN(Application::onCloseEvent));
         EventSystem::registerEvent(EventType::WindowResize, this, GN_BIND_EVENT_FN(Application::onResizeEvent));
         m_inputSystem = std::make_unique<InputSystem>();
+        m_renderer = std::make_unique<VulkanRenderer>();
         m_isRunning = true;
     }
 
     void Application::run() {
         while (m_isRunning) {
+            GN_CORE_INFO("application::run");
             m_window->onUpdate();
         }
     }

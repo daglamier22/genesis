@@ -2,6 +2,7 @@
 
 #include "../Events/ApplicationEvents.h"
 #include "InputSystem.h"
+#include "Renderer.h"
 #include "Window.h"
 
 namespace Genesis {
@@ -22,6 +23,7 @@ namespace Genesis {
             bool m_isRunning;
             std::unique_ptr<Window> m_window;
             std::unique_ptr<InputSystem> m_inputSystem;
+            std::unique_ptr<Renderer> m_renderer;
     };
 
     Application* createApp();

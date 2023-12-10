@@ -34,3 +34,6 @@
 # CMake build dir
 build/*
 bin/*
+
+# Vendor dirs
+genesis/vendor/*

@@ -5,7 +5,10 @@
             "includePath": [
                 "${workspaceFolder}/genesis/include/**",
                 "${workspaceFolder}/genesis/src/**",
-                "${workspaceFolder}/build/_deps/quill-src/quill/include"
+                "${workspaceFolder}/build/_deps/quill-src/quill/include",
+                "${workspaceFolder}/build/_deps/glfw-src/include",
+                "${workspaceFolder}/build/_deps/glm-src/glm",
+                "${VULKAN_SDK}/include"
             ],
             "defines": [
                 "_DEBUG",

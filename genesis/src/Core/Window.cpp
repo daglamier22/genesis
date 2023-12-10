@@ -5,6 +5,7 @@
 #include "Core/Logger.h"
 #include "Platform/PlatformDetection.h"
 #ifdef GN_PLATFORM_LINUX
+    #include "Platform/GLFWWindow.h"
     #include "Platform/LinuxWindow.h"
 #endif
 
@@ -13,7 +14,7 @@ namespace Genesis {
 #ifdef GN_PLATFORM_LINUX
         if (std::getenv("WAYLAND_DISPLAY")) {
             GN_CORE_ERROR("WAYLAND");
-            return std::make_unique<LinuxWindow>(properties);
+            return std::make_unique<GLFWWindow>(properties);
         } else {
             GN_CORE_ERROR("XORG");
             return std::make_unique<LinuxWindow>(properties);
