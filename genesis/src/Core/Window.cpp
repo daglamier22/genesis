@@ -12,13 +12,7 @@
 namespace Genesis {
     std::unique_ptr<Window> Window::create(const WindowCreationProperties properties) {
 #ifdef GN_PLATFORM_LINUX
-        if (std::getenv("WAYLAND_DISPLAY")) {
-            GN_CORE_ERROR("WAYLAND");
-            return std::make_unique<GLFWWindow>(properties);
-        } else {
-            GN_CORE_ERROR("XORG");
-            return std::make_unique<LinuxWindow>(properties);
-        }
+        return std::make_unique<GLFWWindow>(properties);
 #else
         GN_CORE_CRITICAL("Unsupported platform.");
         return nullptr;
