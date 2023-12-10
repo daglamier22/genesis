@@ -17,11 +17,12 @@ FetchContent_Declare(glm
     URL_HASH SHA256=37e2a3d62ea3322e43593c34bae29f57e3e251ea89f4067506c94043769ade4c
 )
 # fetch vulkan sdk and tools
-FetchContent_Declare(vulkan
-    URL https://sdk.lunarg.com/sdk/download/1.3.268.0/linux/vulkansdk-linux-x86_64-1.3.268.0.tar.xz
-    URL_HASH SHA256=d23343736247828ff5b3b6b1b7fd83a72b5df1a54b2527ae3663cebdfee75842
-)
-FetchContent_MakeAvailable(quill glfw glm vulkan)
+# FetchContent_Declare(vulkan
+#     URL https://sdk.lunarg.com/sdk/download/1.3.268.0/linux/vulkansdk-linux-x86_64-1.3.268.0.tar.xz
+#     URL_HASH SHA256=d23343736247828ff5b3b6b1b7fd83a72b5df1a54b2527ae3663cebdfee75842
+# )
+FetchContent_MakeAvailable(quill glfw glm)
+find_package(Vulkan REQUIRED)
 
 project(genesis VERSION 0.1.0 LANGUAGES C CXX)
 add_subdirectory(genesis genesis)
