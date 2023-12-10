@@ -19,12 +19,16 @@ namespace Genesis {
         if (!setupDebugMessenger()) {
             return;
         }
-        if (!pickPhysicalDevice()) {
+        if (!m_vulkanDevice.pickPhysicalDevice(m_vkInstance)) {
+            return;
+        }
+        if (!m_vulkanDevice.createLogicalDevice()) {
             return;
         }
     }
 
     void VulkanRenderer::shutdown() {
+        m_vulkanDevice.shutdown();
         if (m_enableValidationLayers) {
             VulkanRenderer::destroyDebugUtilsMessengerEXT(m_vkInstance, m_debugMessenger, nullptr);
         }
@@ -72,7 +76,7 @@ namespace Genesis {
             GN_CORE_ERROR("Unable to create Vulkan instance.");
             return false;
         }
-        GN_CORE_INFO("Vulkan instnce created successfully.");
+        GN_CORE_INFO("Vulkan instance created successfully.");
         return true;
     }
 
@@ -170,61 +174,5 @@ namespace Genesis {
         createInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
         createInfo.pfnUserCallback = VulkanRenderer::debugCallback;
         createInfo.pUserData = nullptr;
-    }
-
-    bool VulkanRenderer::pickPhysicalDevice() {
-        uint32_t deviceCount = 0;
-        vkEnumeratePhysicalDevices(m_vkInstance, &deviceCount, nullptr);
-        if (deviceCount == 0) {
-            GN_CORE_ERROR("Failed to find GPUs with Vulkan support.");
-            return false;
-        }
-
-        std::vector<VkPhysicalDevice> devices(deviceCount);
-        vkEnumeratePhysicalDevices(m_vkInstance, &deviceCount, devices.data());
-        for (const auto& device : devices) {
-            if (isDeviceSuitable(device)) {
-                m_physicalDevice = device;
-                break;
-            }
-        }
-
-        if (m_physicalDevice == VK_NULL_HANDLE) {
-            GN_CORE_ERROR("Failed to find a suitable GPU.");
-            return false;
-        }
-
-        return true;
-    }
-
-    bool VulkanRenderer::isDeviceSuitable(VkPhysicalDevice device) {
-        QueueFamilyIndices indices = findQueueFamilies(device);
-
-        return indices.isComplete();
-    }
-
-    VulkanRenderer::QueueFamilyIndices VulkanRenderer::findQueueFamilies(VkPhysicalDevice device) {
-        QueueFamilyIndices indices;
-
-        uint32_t queueFamilyCount = 0;
-        vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, nullptr);
-
-        std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
-        vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, queueFamilies.data());
-
-        int i = 0;
-        for (const auto& queueFamily : queueFamilies) {
-            if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT) {
-                indices.graphicsFamily = i;
-            }
-
-            if (indices.isComplete()) {
-                break;
-            }
-
-            i++;
-        }
-
-        return indices;
     }
 }  // namespace Genesis

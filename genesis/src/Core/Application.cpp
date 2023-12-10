@@ -1,6 +1,6 @@
 #include "Application.h"
 
-#include "../Renderer/VulkanRenderer.h"
+#include "../Renderer/Vulkan/VulkanRenderer.h"
 #include "Core/EventSystem.h"
 #include "Core/Logger.h"
 
