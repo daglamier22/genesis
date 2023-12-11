@@ -56,6 +56,8 @@ namespace Genesis {
                 return "Key::KEY_LSUPER";
             case Key::KEY_RSUPER:
                 return "Key::KEY_RSUPER";
+            case Key::KEY_MENU:
+                return "Key::KEY_MENU";
 
             case Key::KEY_NUMPAD0:
                 return "Key::KEY_NUMPAD0";

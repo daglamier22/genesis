@@ -69,6 +69,7 @@ namespace Genesis {
 
         KEY_LSUPER = 0x5B,
         KEY_RSUPER = 0x5C,
+        KEY_MENU = 0x5D,
 
         KEY_NUMPAD0 = 0x60,
         KEY_NUMPAD1 = 0x61,

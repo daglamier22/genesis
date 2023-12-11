@@ -3,6 +3,8 @@
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
+#include "Core/Keyboard.h"
+#include "Core/Mouse.h"
 #include "Core/Window.h"
 
 namespace Genesis {
@@ -18,6 +20,9 @@ namespace Genesis {
             virtual void onUpdate();
 
         private:
+            Key translateKey(int key);
+            Button translateButton(int button);
+
             std::string m_title;
             int16_t m_x;
             int16_t m_y;

@@ -263,6 +263,8 @@ namespace Genesis {
                 return Key::KEY_LSUPER;
             case XK_Super_R:
                 return Key::KEY_RSUPER;
+            case XK_Menu:
+                return Key::KEY_MENU;
 
             case XK_KP_0:
             case XK_KP_Insert:
