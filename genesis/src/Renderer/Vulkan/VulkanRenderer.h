@@ -6,6 +6,8 @@
 #include "Core/Renderer.h"
 #include "Platform/GLFWWindow.h"
 #include "VulkanDevice.h"
+#include "VulkanSupportTypes.h"
+#include "VulkanSwapchain.h"
 
 namespace Genesis {
     class VulkanRenderer : public Renderer {
@@ -17,15 +19,13 @@ namespace Genesis {
             void shutdown();
 
         private:
-            // VulkanRenderer() {}
             bool createInstance();
             bool checkValidationLayerSupport();
             std::vector<const char*> getRequiredExtensions();
-            bool createSurface(std::shared_ptr<GLFWWindow> window);
 
             VkInstance m_vkInstance;
-            VkSurfaceKHR m_vkSurface;
             VulkanDevice m_vkDevice;
+            VulkanSwapchain m_vkSwapChain;
 
             // Setup Debug Messenger
             bool setupDebugMessenger();

@@ -19,23 +19,27 @@ namespace Genesis {
         if (!setupDebugMessenger()) {
             return;
         }
-        if (!createSurface(glfwWindow)) {
+        if (!m_vkSwapChain.createSurface(glfwWindow, m_vkInstance)) {
             return;
         }
-        if (!m_vkDevice.pickPhysicalDevice(m_vkInstance, m_vkSurface)) {
+        if (!m_vkDevice.pickPhysicalDevice(m_vkInstance, m_vkSwapChain.getSurface())) {
             return;
         }
-        if (!m_vkDevice.createLogicalDevice(m_vkSurface)) {
+        if (!m_vkDevice.createLogicalDevice(m_vkSwapChain.getSurface())) {
+            return;
+        }
+        if (!m_vkSwapChain.createSwapChain(glfwWindow, m_vkDevice)) {
             return;
         }
     }
 
     void VulkanRenderer::shutdown() {
-        m_vkDevice.shutdown();
+        vkDestroySwapchainKHR(m_vkDevice.getDevice(), m_vkSwapChain.getSwapchain(), nullptr);
+        vkDestroyDevice(m_vkDevice.getDevice(), nullptr);
         if (m_enableValidationLayers) {
             VulkanRenderer::destroyDebugUtilsMessengerEXT(m_vkInstance, m_debugMessenger, nullptr);
         }
-        vkDestroySurfaceKHR(m_vkInstance, m_vkSurface, nullptr);
+        vkDestroySurfaceKHR(m_vkInstance, m_vkSwapChain.getSurface(), nullptr);
         vkDestroyInstance(m_vkInstance, nullptr);
     }
 
@@ -122,16 +126,6 @@ namespace Genesis {
         }
 
         return extensions;
-    }
-
-    bool VulkanRenderer::createSurface(std::shared_ptr<GLFWWindow> window) {
-        if (glfwCreateWindowSurface(m_vkInstance, (GLFWwindow*)window->getWindow(), nullptr, &m_vkSurface) != VK_SUCCESS) {
-            GN_CORE_ERROR("Failed to create window surface.");
-            return false;
-        }
-
-        GN_CORE_INFO("Vulkan surface created successfully.");
-        return true;
     }
 
     VKAPI_ATTR VkBool32 VKAPI_CALL VulkanRenderer::debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
