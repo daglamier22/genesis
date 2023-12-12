@@ -78,6 +78,35 @@ namespace Genesis {
         return true;
     }
 
+    bool VulkanSwapchain::createImageViews(VulkanDevice device) {
+        m_vkSwapchainImageViews.resize(m_vkSwapchainImages.size());
+
+        for (size_t i = 0; i < m_vkSwapchainImages.size(); i++) {
+            VkImageViewCreateInfo createInfo{};
+            createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+            createInfo.image = m_vkSwapchainImages[i];
+            createInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+            createInfo.format = m_vkSwapchainImageFormat;
+            createInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+            createInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+            createInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+            createInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+            createInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            createInfo.subresourceRange.baseMipLevel = 0;
+            createInfo.subresourceRange.levelCount = 1;
+            createInfo.subresourceRange.baseArrayLayer = 0;
+            createInfo.subresourceRange.layerCount = 1;
+
+            if (vkCreateImageView(device.getDevice(), &createInfo, nullptr, &m_vkSwapchainImageViews[i]) != VK_SUCCESS) {
+                GN_CORE_ERROR("Failed to create image views.");
+                return false;
+            }
+        }
+
+        GN_CORE_INFO("Image views created successfully.");
+        return true;
+    }
+
     VkSurfaceFormatKHR VulkanSwapchain::chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats) {
         for (const auto& availableFormat : availableFormats) {
             if (availableFormat.format == VK_FORMAT_B8G8R8A8_SRGB && availableFormat.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) {
