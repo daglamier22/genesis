@@ -16,7 +16,6 @@ namespace Genesis {
             void shutdown();
 
             void onCloseEvent(Event& e);
-            void onResizeEvent(Event& e);
 
         private:
             std::string m_applicationName;

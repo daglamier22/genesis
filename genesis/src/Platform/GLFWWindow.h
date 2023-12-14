@@ -15,10 +15,14 @@ namespace Genesis {
 
             virtual void* getWindow() const { return m_window; }
             std::string getWindowTitle() const { return m_title; }
+            uint16_t getWindowWidth() const { return m_windowWidth; }
+            uint16_t getWindowHeight() const { return m_windowHeight; }
 
             void init(const WindowCreationProperties properties);
             void shutdown();
             virtual void onUpdate();
+
+            void waitForWindowToBeRestored(int* width, int* height);
 
         private:
             Key translateKey(int key);

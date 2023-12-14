@@ -19,7 +19,6 @@ namespace Genesis {
         windowProperties.title = m_applicationName;
         m_window = Window::create(windowProperties);
         EventSystem::registerEvent(EventType::WindowClose, this, GN_BIND_EVENT_FN(Application::onCloseEvent));
-        EventSystem::registerEvent(EventType::WindowResize, this, GN_BIND_EVENT_FN(Application::onResizeEvent));
         m_inputSystem = std::make_unique<InputSystem>();
         m_renderer = std::make_unique<VulkanRenderer>(m_window);
         m_isRunning = true;
@@ -37,14 +36,9 @@ namespace Genesis {
 
     void Application::shutdown() {
         EventSystem::unregisterEvent(EventType::WindowClose, this, GN_BIND_EVENT_FN(Application::onCloseEvent));
-        EventSystem::unregisterEvent(EventType::WindowResize, this, GN_BIND_EVENT_FN(Application::onResizeEvent));
     }
 
     void Application::onCloseEvent(Event& e) {
         m_isRunning = false;
-    }
-
-    void Application::onResizeEvent(Event& e) {
-        GN_CORE_TRACE("Resized");
     }
 }  // namespace Genesis

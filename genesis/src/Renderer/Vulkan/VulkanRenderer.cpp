@@ -11,6 +11,11 @@ namespace Genesis {
         shutdown();
     }
 
+    void VulkanRenderer::onResizeEvent(Event& e) {
+        GN_CORE_TRACE("Resized");
+        m_framebufferResized = true;
+    }
+
     void VulkanRenderer::init() {
         if (!createInstance()) {
             return;
@@ -45,41 +50,51 @@ namespace Genesis {
         if (!createCommandPool()) {
             return;
         }
-        if (!createCommandBuffer()) {
+        if (!createCommandBuffers()) {
             return;
         }
         if (!createSyncObjects()) {
             return;
         }
+        EventSystem::registerEvent(EventType::WindowResize, this, GN_BIND_EVENT_FN(VulkanRenderer::onResizeEvent));
     }
 
     bool VulkanRenderer::drawFrame() {
-        vkWaitForFences(m_vkDevice, 1, &m_vkInFlightFence, VK_TRUE, UINT64_MAX);
-        vkResetFences(m_vkDevice, 1, &m_vkInFlightFence);
+        vkWaitForFences(m_vkDevice, 1, &m_vkInFlightFences[m_currentFrame], VK_TRUE, UINT64_MAX);
 
         uint32_t imageIndex;
-        vkAcquireNextImageKHR(m_vkDevice, m_vkSwapchain, UINT64_MAX, m_vkImageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
+        VkResult result = vkAcquireNextImageKHR(m_vkDevice, m_vkSwapchain, UINT64_MAX, m_vkImageAvailableSemaphores[m_currentFrame], VK_NULL_HANDLE, &imageIndex);
+        if (result == VK_ERROR_OUT_OF_DATE_KHR) {
+            recreateSwapChain();
+            return true;
+        } else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
+            GN_CORE_ERROR("Failed to acquire swwap chain image.");
+            return false;
+        }
 
-        vkResetCommandBuffer(m_vkCommandBuffer, 0);
-        recordCommandBuffer(m_vkCommandBuffer, imageIndex);
+        // Only reset the fence if we are submitting work
+        vkResetFences(m_vkDevice, 1, &m_vkInFlightFences[m_currentFrame]);
+
+        vkResetCommandBuffer(m_vkCommandBuffers[m_currentFrame], 0);
+        recordCommandBuffer(m_vkCommandBuffers[m_currentFrame], imageIndex);
 
         VkSubmitInfo submitInfo{};
         submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
-        VkSemaphore waitSemaphores[] = {m_vkImageAvailableSemaphore};
+        VkSemaphore waitSemaphores[] = {m_vkImageAvailableSemaphores[m_currentFrame]};
         VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
         submitInfo.waitSemaphoreCount = 1;
         submitInfo.pWaitSemaphores = waitSemaphores;
         submitInfo.pWaitDstStageMask = waitStages;
 
         submitInfo.commandBufferCount = 1;
-        submitInfo.pCommandBuffers = &m_vkCommandBuffer;
+        submitInfo.pCommandBuffers = &m_vkCommandBuffers[m_currentFrame];
 
-        VkSemaphore signalSemaphores[] = {m_vkRenderFinishedSemaphore};
+        VkSemaphore signalSemaphores[] = {m_vkRenderFinishedSemaphores[m_currentFrame]};
         submitInfo.signalSemaphoreCount = 1;
         submitInfo.pSignalSemaphores = signalSemaphores;
 
-        if (vkQueueSubmit(m_vkGraphicsQueue, 1, &submitInfo, m_vkInFlightFence) != VK_SUCCESS) {
+        if (vkQueueSubmit(m_vkGraphicsQueue, 1, &submitInfo, m_vkInFlightFences[m_currentFrame]) != VK_SUCCESS) {
             GN_CORE_ERROR("Failed to submit draw command buffer.");
             return false;
         }
@@ -97,31 +112,36 @@ namespace Genesis {
 
         presentInfo.pResults = nullptr;  // Optional
 
-        vkQueuePresentKHR(m_vkPresentQueue, &presentInfo);
+        result = vkQueuePresentKHR(m_vkPresentQueue, &presentInfo);
+        if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || m_framebufferResized) {
+            m_framebufferResized = false;
+            recreateSwapChain();
+        } else if (result != VK_SUCCESS) {
+            GN_CORE_ERROR("Failed to present swap chain image.");
+            return false;
+        }
 
+        m_currentFrame = (m_currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
         return true;
     }
 
     void VulkanRenderer::shutdown() {
-        vkDestroySemaphore(m_vkDevice, m_vkImageAvailableSemaphore, nullptr);
-        vkDestroySemaphore(m_vkDevice, m_vkRenderFinishedSemaphore, nullptr);
-        vkDestroyFence(m_vkDevice, m_vkInFlightFence, nullptr);
+        EventSystem::unregisterEvent(EventType::WindowResize, this, GN_BIND_EVENT_FN(VulkanRenderer::onResizeEvent));
+
+        cleanupSwapChain();
+
+        for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+            vkDestroySemaphore(m_vkDevice, m_vkImageAvailableSemaphores[i], nullptr);
+            vkDestroySemaphore(m_vkDevice, m_vkRenderFinishedSemaphores[i], nullptr);
+            vkDestroyFence(m_vkDevice, m_vkInFlightFences[i], nullptr);
+        }
 
         vkDestroyCommandPool(m_vkDevice, m_vkCommandPool, nullptr);
-
-        for (auto framebuffer : m_vkSwapchainFramebuffers) {
-            vkDestroyFramebuffer(m_vkDevice, framebuffer, nullptr);
-        }
 
         vkDestroyPipeline(m_vkDevice, m_vkGraphicsPipeline, nullptr);
         vkDestroyPipelineLayout(m_vkDevice, m_vkPipelineLayout, nullptr);
         vkDestroyRenderPass(m_vkDevice, m_vkRenderPass, nullptr);
 
-        for (auto imageView : m_vkSwapchainImageViews) {
-            vkDestroyImageView(m_vkDevice, imageView, nullptr);
-        }
-
-        vkDestroySwapchainKHR(m_vkDevice, m_vkSwapchain, nullptr);
         vkDestroyDevice(m_vkDevice, nullptr);
 
         if (m_enableValidationLayers) {
@@ -129,6 +149,18 @@ namespace Genesis {
         }
         vkDestroySurfaceKHR(m_vkInstance, m_vkSurface, nullptr);
         vkDestroyInstance(m_vkInstance, nullptr);
+    }
+
+    void VulkanRenderer::cleanupSwapChain() {
+        for (auto framebuffer : m_vkSwapchainFramebuffers) {
+            vkDestroyFramebuffer(m_vkDevice, framebuffer, nullptr);
+        }
+
+        for (auto imageView : m_vkSwapchainImageViews) {
+            vkDestroyImageView(m_vkDevice, imageView, nullptr);
+        }
+
+        vkDestroySwapchainKHR(m_vkDevice, m_vkSwapchain, nullptr);
     }
 
     void VulkanRenderer::waitForIdle() {
@@ -537,6 +569,25 @@ namespace Genesis {
         }
     }
 
+    void VulkanRenderer::recreateSwapChain() {
+        std::shared_ptr<GLFWWindow> window = std::dynamic_pointer_cast<GLFWWindow>(m_window);
+        int width = (int)window->getWindowWidth();
+        int height = (int)window->getWindowHeight();
+        while (width == 0 || height == 0) {
+            window->waitForWindowToBeRestored(&width, &height);
+        }
+
+        vkDeviceWaitIdle(m_vkDevice);
+
+        cleanupSwapChain();
+
+        createSwapChain();
+        createImageViews();
+        createFramebuffers();
+
+        GN_CORE_INFO("Vulkan swapchain recreated.");
+    }
+
     bool VulkanRenderer::createGraphicsPipeline() {
         auto vertShaderCode = readFile("assets/shaders/shader.vert.spv");
         if (vertShaderCode.size() == 0) {
@@ -782,14 +833,15 @@ namespace Genesis {
         return true;
     }
 
-    bool VulkanRenderer::createCommandBuffer() {
+    bool VulkanRenderer::createCommandBuffers() {
+        m_vkCommandBuffers.resize(MAX_FRAMES_IN_FLIGHT);
         VkCommandBufferAllocateInfo allocInfo{};
         allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
         allocInfo.commandPool = m_vkCommandPool;
         allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-        allocInfo.commandBufferCount = 1;
+        allocInfo.commandBufferCount = (uint32_t)m_vkCommandBuffers.size();
 
-        if (vkAllocateCommandBuffers(m_vkDevice, &allocInfo, &m_vkCommandBuffer) != VK_SUCCESS) {
+        if (vkAllocateCommandBuffers(m_vkDevice, &allocInfo, m_vkCommandBuffers.data()) != VK_SUCCESS) {
             GN_CORE_ERROR("Failed to allocate command buffers.");
             return false;
         }
@@ -851,6 +903,10 @@ namespace Genesis {
     }
 
     bool VulkanRenderer::createSyncObjects() {
+        m_vkImageAvailableSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
+        m_vkRenderFinishedSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
+        m_vkInFlightFences.resize(MAX_FRAMES_IN_FLIGHT);
+
         VkSemaphoreCreateInfo semaphoreInfo{};
         semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 
@@ -858,11 +914,13 @@ namespace Genesis {
         fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
         fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
-        if (vkCreateSemaphore(m_vkDevice, &semaphoreInfo, nullptr, &m_vkImageAvailableSemaphore) != VK_SUCCESS ||
-            vkCreateSemaphore(m_vkDevice, &semaphoreInfo, nullptr, &m_vkRenderFinishedSemaphore) != VK_SUCCESS ||
-            vkCreateFence(m_vkDevice, &fenceInfo, nullptr, &m_vkInFlightFence) != VK_SUCCESS) {
-            GN_CORE_ERROR("Failed to create semaphores.");
-            return false;
+        for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+            if (vkCreateSemaphore(m_vkDevice, &semaphoreInfo, nullptr, &m_vkImageAvailableSemaphores[i]) != VK_SUCCESS ||
+                vkCreateSemaphore(m_vkDevice, &semaphoreInfo, nullptr, &m_vkRenderFinishedSemaphores[i]) != VK_SUCCESS ||
+                vkCreateFence(m_vkDevice, &fenceInfo, nullptr, &m_vkInFlightFences[i]) != VK_SUCCESS) {
+                GN_CORE_ERROR("Failed to create semaphores.");
+                return false;
+            }
         }
 
         return true;

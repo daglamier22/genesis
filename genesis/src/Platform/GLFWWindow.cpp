@@ -25,8 +25,6 @@ namespace Genesis {
         glfwInit();
 
         glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-        // TODO: Remove this later to get resizing working
-        glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
 
         m_window = glfwCreateWindow(m_windowWidth, m_windowHeight, m_title.c_str(), nullptr, nullptr);
 
@@ -139,6 +137,11 @@ namespace Genesis {
 
     void GLFWWindow::onUpdate() {
         glfwPollEvents();
+    }
+
+    void GLFWWindow::waitForWindowToBeRestored(int* width, int* height) {
+        glfwGetFramebufferSize(m_window, width, height);
+        glfwWaitEvents();
     }
 
     Key GLFWWindow::translateKey(int key) {

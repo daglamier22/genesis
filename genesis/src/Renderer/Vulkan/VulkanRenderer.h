@@ -2,11 +2,14 @@
 
 #include <vulkan/vulkan.h>
 
+#include "Core/EventSystem.h"
 #include "Core/Logger.h"
 #include "Core/Renderer.h"
 #include "Platform/GLFWWindow.h"
 
 namespace Genesis {
+    const int MAX_FRAMES_IN_FLIGHT = 2;
+
     struct QueueFamilyIndices {
             std::optional<uint32_t> graphicsFamily;
             std::optional<uint32_t> presentFamily;
@@ -34,6 +37,8 @@ namespace Genesis {
             void waitForIdle();
 
         private:
+            void onResizeEvent(Event& e);
+
             bool createInstance();
             bool checkValidationLayerSupport();
             std::vector<const char*> getRequiredExtensions();
@@ -52,6 +57,8 @@ namespace Genesis {
             VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats);
             VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes);
             VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities);
+            void cleanupSwapChain();
+            void recreateSwapChain();
 
             bool createGraphicsPipeline();
             bool createRenderPass();
@@ -59,7 +66,7 @@ namespace Genesis {
             static std::vector<char> readFile(const std::string& filename);
 
             bool createCommandPool();
-            bool createCommandBuffer();
+            bool createCommandBuffers();
             bool recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex);
             bool createSyncObjects();
 
@@ -84,11 +91,14 @@ namespace Genesis {
             VkPipeline m_vkGraphicsPipeline;
 
             VkCommandPool m_vkCommandPool;
-            VkCommandBuffer m_vkCommandBuffer;
+            std::vector<VkCommandBuffer> m_vkCommandBuffers;
 
-            VkSemaphore m_vkImageAvailableSemaphore;
-            VkSemaphore m_vkRenderFinishedSemaphore;
-            VkFence m_vkInFlightFence;
+            std::vector<VkSemaphore> m_vkImageAvailableSemaphores;
+            std::vector<VkSemaphore> m_vkRenderFinishedSemaphores;
+            std::vector<VkFence> m_vkInFlightFences;
+
+            uint32_t m_currentFrame = 0;
+            bool m_framebufferResized = false;
 
             bool setupDebugMessenger();
             void populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo);
