@@ -1,6 +1,8 @@
 #include "VulkanPipeline.h"
 
 #include "Core/Logger.h"
+#include "VulkanDevice.h"
+#include "VulkanSwapchain.h"
 
 namespace Genesis {
     bool VulkanPipeline::createGraphicsPipeline(VulkanDevice device, VulkanSwapchain swapchain) {

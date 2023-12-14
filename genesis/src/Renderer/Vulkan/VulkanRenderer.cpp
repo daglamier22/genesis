@@ -40,9 +40,16 @@ namespace Genesis {
         if (!m_vkPipeline.createGraphicsPipeline(m_vkDevice, m_vkSwapChain)) {
             return;
         }
+        if (!m_vkSwapChain.createFramebuffers(m_vkDevice, m_vkPipeline)) {
+            return;
+        }
     }
 
     void VulkanRenderer::shutdown() {
+        for (auto framebuffer : m_vkSwapChain.getSwapchainFramebuffers()) {
+            vkDestroyFramebuffer(m_vkDevice.getDevice(), framebuffer, nullptr);
+        }
+
         vkDestroyPipeline(m_vkDevice.getDevice(), m_vkPipeline.getGraphicsPipeline(), nullptr);
         vkDestroyPipelineLayout(m_vkDevice.getDevice(), m_vkPipeline.getPipelineLayout(), nullptr);
         vkDestroyRenderPass(m_vkDevice.getDevice(), m_vkPipeline.getRenderPass(), nullptr);

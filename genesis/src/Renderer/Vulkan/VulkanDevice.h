@@ -14,7 +14,6 @@ namespace Genesis {
             VkQueue getPresentQueue() const { return m_vkPresentQueue; }
 
             bool pickPhysicalDevice(VkInstance instance, VkSurfaceKHR surface);
-            bool isDeviceSuitable(VkPhysicalDevice device, VkSurfaceKHR surface);
             bool createLogicalDevice(VkSurfaceKHR surface);
 
             QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device, VkSurfaceKHR surface);
@@ -23,6 +22,7 @@ namespace Genesis {
 
         private:
             bool checkDeviceExtensionSupport(VkPhysicalDevice device);
+            bool isDeviceSuitable(VkPhysicalDevice device, VkSurfaceKHR surface);
 
             VkPhysicalDevice m_vkPhysicalDevice = VK_NULL_HANDLE;
             VkDevice m_vkDevice;

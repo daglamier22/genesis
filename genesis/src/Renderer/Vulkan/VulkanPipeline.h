@@ -1,9 +1,9 @@
 #pragma once
 
-#include "VulkanDevice.h"
-#include "VulkanSwapchain.h"
-
 namespace Genesis {
+    class VulkanDevice;
+    class VulkanSwapchain;
+
     class VulkanPipeline {
         public:
             bool createGraphicsPipeline(VulkanDevice device, VulkanSwapchain swapchain);
