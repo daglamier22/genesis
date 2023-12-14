@@ -42,6 +42,14 @@ namespace Genesis {
             EventSystem::fireEvent(resizeEvent);
         });
 
+        glfwSetWindowPosCallback(m_window, [](GLFWwindow* window, int xpos, int ypos) {
+            GLFWWindow& data = *(GLFWWindow*)glfwGetWindowUserPointer(window);
+            data.m_x = xpos;
+            data.m_y = ypos;
+
+            GN_CORE_TRACE("Window move occured. {}, {}", xpos, ypos);
+        });
+
         glfwSetWindowCloseCallback(m_window, [](GLFWwindow* window) {
             GLFWWindow& data = *(GLFWWindow*)glfwGetWindowUserPointer(window);
             GN_CORE_TRACE("Window close event triggered.");

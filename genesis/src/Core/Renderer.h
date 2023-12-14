@@ -5,11 +5,17 @@
 namespace Genesis {
     class Renderer {
         public:
-            Renderer(std::shared_ptr<Window> window) {}
+            Renderer(std::shared_ptr<Window> window) : m_window(window) {}
             virtual ~Renderer() {}
-            virtual void init(std::shared_ptr<Window> window) = 0;
+
+            std::shared_ptr<Window> getWindow() const { return m_window; }
+
+            virtual void init() = 0;
             virtual bool drawFrame() = 0;
             virtual void shutdown() = 0;
             virtual void waitForIdle() = 0;
+
+        protected:
+            std::shared_ptr<Window> m_window;
     };
 }  // namespace Genesis

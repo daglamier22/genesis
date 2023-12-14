@@ -4,22 +4,21 @@
 
 namespace Genesis {
     VulkanRenderer::VulkanRenderer(std::shared_ptr<Window> window) : Renderer(window) {
-        init(window);
+        init();
     }
 
     VulkanRenderer::~VulkanRenderer() {
         shutdown();
     }
 
-    void VulkanRenderer::init(std::shared_ptr<Window> window) {
-        std::shared_ptr<GLFWWindow> glfwWindow = std::dynamic_pointer_cast<GLFWWindow>(window);
+    void VulkanRenderer::init() {
         if (!createInstance()) {
             return;
         }
         if (!setupDebugMessenger()) {
             return;
         }
-        if (!createSurface(glfwWindow)) {
+        if (!createSurface()) {
             return;
         }
         if (!pickPhysicalDevice()) {
@@ -28,7 +27,7 @@ namespace Genesis {
         if (!createLogicalDevice()) {
             return;
         }
-        if (!createSwapChain(glfwWindow)) {
+        if (!createSwapChain()) {
             return;
         }
         if (!createImageViews()) {
@@ -142,9 +141,10 @@ namespace Genesis {
             return false;
         }
 
+        std::shared_ptr<GLFWWindow> window = std::dynamic_pointer_cast<GLFWWindow>(m_window);
         VkApplicationInfo appInfo{};
         appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-        appInfo.pApplicationName = "Hello Triangle";  // TODO: pass in program name from window
+        appInfo.pApplicationName = window->getWindowTitle().c_str();
         appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
         appInfo.pEngineName = "Genesis";
         appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
@@ -373,7 +373,8 @@ namespace Genesis {
         return true;
     }
 
-    bool VulkanRenderer::createSurface(std::shared_ptr<GLFWWindow> window) {
+    bool VulkanRenderer::createSurface() {
+        std::shared_ptr<GLFWWindow> window = std::dynamic_pointer_cast<GLFWWindow>(m_window);
         if (glfwCreateWindowSurface(m_vkInstance, (GLFWwindow*)window->getWindow(), nullptr, &m_vkSurface) != VK_SUCCESS) {
             GN_CORE_ERROR("Failed to create window surface.");
             return false;
@@ -383,12 +384,12 @@ namespace Genesis {
         return true;
     }
 
-    bool VulkanRenderer::createSwapChain(std::shared_ptr<GLFWWindow> window) {
+    bool VulkanRenderer::createSwapChain() {
         SwapChainSupportDetails swapChainSupport = querySwapChainSupport(m_vkPhysicalDevice);
 
         VkSurfaceFormatKHR surfaceFormat = chooseSwapSurfaceFormat(swapChainSupport.formats);
         VkPresentModeKHR presentMode = chooseSwapPresentMode(swapChainSupport.presentModes);
-        VkExtent2D extent = chooseSwapExtent(swapChainSupport.capabilities, window);
+        VkExtent2D extent = chooseSwapExtent(swapChainSupport.capabilities);
 
         uint32_t imageCount = swapChainSupport.capabilities.minImageCount + 1;
         if (swapChainSupport.capabilities.maxImageCount > 0 && imageCount > swapChainSupport.capabilities.maxImageCount) {
@@ -517,7 +518,8 @@ namespace Genesis {
         return VK_PRESENT_MODE_FIFO_KHR;
     }
 
-    VkExtent2D VulkanRenderer::chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities, std::shared_ptr<GLFWWindow> window) {
+    VkExtent2D VulkanRenderer::chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities) {
+        std::shared_ptr<GLFWWindow> window = std::dynamic_pointer_cast<GLFWWindow>(m_window);
         if (capabilities.currentExtent.width != std::numeric_limits<uint32_t>::max()) {
             return capabilities.currentExtent;
         } else {

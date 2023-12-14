@@ -14,6 +14,7 @@ namespace Genesis {
             virtual ~GLFWWindow();
 
             virtual void* getWindow() const { return m_window; }
+            std::string getWindowTitle() const { return m_title; }
 
             void init(const WindowCreationProperties properties);
             void shutdown();

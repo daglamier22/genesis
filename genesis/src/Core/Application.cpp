@@ -16,6 +16,7 @@ namespace Genesis {
     void Application::init() {
         Genesis::Logger::init(m_applicationName);
         WindowCreationProperties windowProperties;
+        windowProperties.title = m_applicationName;
         m_window = Window::create(windowProperties);
         EventSystem::registerEvent(EventType::WindowClose, this, GN_BIND_EVENT_FN(Application::onCloseEvent));
         EventSystem::registerEvent(EventType::WindowResize, this, GN_BIND_EVENT_FN(Application::onResizeEvent));

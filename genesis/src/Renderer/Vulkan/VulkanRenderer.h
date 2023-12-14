@@ -27,7 +27,7 @@ namespace Genesis {
             VulkanRenderer(std::shared_ptr<Window> window);
             ~VulkanRenderer();
 
-            void init(std::shared_ptr<Window> window);
+            void init();
             bool drawFrame();
             void shutdown();
 
@@ -45,13 +45,13 @@ namespace Genesis {
             bool checkDeviceExtensionSupport(VkPhysicalDevice device);
             bool isDeviceSuitable(VkPhysicalDevice device);
 
-            bool createSurface(std::shared_ptr<GLFWWindow> window);
-            bool createSwapChain(std::shared_ptr<GLFWWindow> window);
+            bool createSurface();
+            bool createSwapChain();
             bool createImageViews();
             bool createFramebuffers();
             VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats);
             VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes);
-            VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities, std::shared_ptr<GLFWWindow> window);
+            VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities);
 
             bool createGraphicsPipeline();
             bool createRenderPass();
