@@ -50,6 +50,9 @@ namespace Genesis {
         if (!createCommandPool()) {
             return;
         }
+        if (!createVertexBuffer()) {
+            return;
+        }
         if (!createCommandBuffers()) {
             return;
         }
@@ -135,6 +138,9 @@ namespace Genesis {
             vkDestroySemaphore(m_vkDevice, m_vkRenderFinishedSemaphores[i], nullptr);
             vkDestroyFence(m_vkDevice, m_vkInFlightFences[i], nullptr);
         }
+
+        vkDestroyBuffer(m_vkDevice, m_vkVertexBuffer, nullptr);
+        vkFreeMemory(m_vkDevice, m_vkVertexBufferMemory, nullptr);
 
         vkDestroyCommandPool(m_vkDevice, m_vkCommandPool, nullptr);
 
@@ -615,12 +621,14 @@ namespace Genesis {
 
         VkPipelineShaderStageCreateInfo shaderStages[] = {vertShaderStageInfo, fragShaderStageInfo};
 
+        auto bindingDescription = Vertex::getBindingDescription();
+        auto attributeDescriptions = Vertex::getAttributeDescriptions();
         VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
         vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-        vertexInputInfo.vertexBindingDescriptionCount = 0;
-        vertexInputInfo.pVertexBindingDescriptions = nullptr;
-        vertexInputInfo.vertexAttributeDescriptionCount = 0;
-        vertexInputInfo.pVertexAttributeDescriptions = nullptr;
+        vertexInputInfo.vertexBindingDescriptionCount = 1;
+        vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
+        vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(attributeDescriptions.size());
+        vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions.data();
 
         VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
         inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
@@ -890,7 +898,11 @@ namespace Genesis {
         scissor.extent = m_vkSwapchainExtent;
         vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
-        vkCmdDraw(commandBuffer, 3, 1, 0, 0);
+        VkBuffer vertexBuffers[] = {m_vkVertexBuffer};
+        VkDeviceSize offsets[] = {0};
+        vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+
+        vkCmdDraw(commandBuffer, static_cast<uint32_t>(vertices.size()), 1, 0, 0);
 
         vkCmdEndRenderPass(commandBuffer);
 
@@ -924,6 +936,56 @@ namespace Genesis {
         }
 
         return true;
+    }
+
+    bool VulkanRenderer::createVertexBuffer() {
+        VkBufferCreateInfo bufferInfo{};
+        bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+        bufferInfo.size = sizeof(vertices[0]) * vertices.size();
+        bufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+        bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+        if (vkCreateBuffer(m_vkDevice, &bufferInfo, nullptr, &m_vkVertexBuffer) != VK_SUCCESS) {
+            GN_CORE_ERROR("Failed to create vertex buffer.");
+            return false;
+        }
+
+        VkMemoryRequirements memRequirements;
+        vkGetBufferMemoryRequirements(m_vkDevice, m_vkVertexBuffer, &memRequirements);
+
+        VkMemoryAllocateInfo allocInfo{};
+        allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+        allocInfo.allocationSize = memRequirements.size;
+        allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+
+        if (vkAllocateMemory(m_vkDevice, &allocInfo, nullptr, &m_vkVertexBufferMemory) != VK_SUCCESS) {
+            GN_CORE_ERROR("Failed to allocate vertex buffer memory.");
+            return false;
+        }
+
+        vkBindBufferMemory(m_vkDevice, m_vkVertexBuffer, m_vkVertexBufferMemory, 0);
+
+        void* data;
+        vkMapMemory(m_vkDevice, m_vkVertexBufferMemory, 0, bufferInfo.size, 0, &data);
+        memcpy(data, vertices.data(), (size_t)bufferInfo.size);
+        vkUnmapMemory(m_vkDevice, m_vkVertexBufferMemory);
+
+        GN_CORE_INFO("Vulkan vertex buffer created.");
+        return true;
+    }
+
+    uint32_t VulkanRenderer::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) {
+        VkPhysicalDeviceMemoryProperties memProperties;
+        vkGetPhysicalDeviceMemoryProperties(m_vkPhysicalDevice, &memProperties);
+
+        for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++) {
+            if ((typeFilter & (1 << i)) && (memProperties.memoryTypes[i].propertyFlags & properties) == properties) {
+                return i;
+            }
+        }
+
+        GN_CORE_ERROR("Failed to find suitable memory type.");
+        return 999999;
     }
 
     VKAPI_ATTR VkBool32 VKAPI_CALL VulkanRenderer::debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,

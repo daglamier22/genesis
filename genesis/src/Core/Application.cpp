@@ -26,7 +26,6 @@ namespace Genesis {
 
     void Application::run() {
         while (m_isRunning) {
-            GN_CORE_INFO("application::run");
             m_window->onUpdate();
             m_renderer->drawFrame();
         }
