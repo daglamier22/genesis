@@ -43,9 +43,73 @@ namespace Genesis {
         if (!m_vkSwapChain.createFramebuffers(m_vkDevice, m_vkPipeline)) {
             return;
         }
+        if (!createCommandPool()) {
+            return;
+        }
+        if (!createCommandBuffer()) {
+            return;
+        }
+        if (!createSyncObjects()) {
+            return;
+        }
+    }
+
+    bool VulkanRenderer::drawFrame() {
+        vkWaitForFences(m_vkDevice.getDevice(), 1, &m_vkInFlightFence, VK_TRUE, UINT64_MAX);
+        vkResetFences(m_vkDevice.getDevice(), 1, &m_vkInFlightFence);
+
+        uint32_t imageIndex;
+        vkAcquireNextImageKHR(m_vkDevice.getDevice(), m_vkSwapChain.getSwapchain(), UINT64_MAX, m_vkImageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
+
+        vkResetCommandBuffer(m_vkCommandBuffer, 0);
+        recordCommandBuffer(m_vkCommandBuffer, imageIndex);
+
+        VkSubmitInfo submitInfo{};
+        submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+
+        VkSemaphore waitSemaphores[] = {m_vkImageAvailableSemaphore};
+        VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+        submitInfo.waitSemaphoreCount = 1;
+        submitInfo.pWaitSemaphores = waitSemaphores;
+        submitInfo.pWaitDstStageMask = waitStages;
+
+        submitInfo.commandBufferCount = 1;
+        submitInfo.pCommandBuffers = &m_vkCommandBuffer;
+
+        VkSemaphore signalSemaphores[] = {m_vkRenderFinishedSemaphore};
+        submitInfo.signalSemaphoreCount = 1;
+        submitInfo.pSignalSemaphores = signalSemaphores;
+
+        if (vkQueueSubmit(m_vkDevice.getGraphicsQueue(), 1, &submitInfo, m_vkInFlightFence) != VK_SUCCESS) {
+            GN_CORE_ERROR("Failed to submit draw command buffer.");
+            return false;
+        }
+
+        VkPresentInfoKHR presentInfo{};
+        presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+
+        presentInfo.waitSemaphoreCount = 1;
+        presentInfo.pWaitSemaphores = signalSemaphores;
+
+        VkSwapchainKHR swapChains[] = {m_vkSwapChain.getSwapchain()};
+        presentInfo.swapchainCount = 1;
+        presentInfo.pSwapchains = swapChains;
+        presentInfo.pImageIndices = &imageIndex;
+
+        presentInfo.pResults = nullptr;  // Optional
+
+        vkQueuePresentKHR(m_vkDevice.getPresentQueue(), &presentInfo);
+
+        return true;
     }
 
     void VulkanRenderer::shutdown() {
+        vkDestroySemaphore(m_vkDevice.getDevice(), m_vkImageAvailableSemaphore, nullptr);
+        vkDestroySemaphore(m_vkDevice.getDevice(), m_vkRenderFinishedSemaphore, nullptr);
+        vkDestroyFence(m_vkDevice.getDevice(), m_vkInFlightFence, nullptr);
+
+        vkDestroyCommandPool(m_vkDevice.getDevice(), m_vkCommandPool, nullptr);
+
         for (auto framebuffer : m_vkSwapChain.getSwapchainFramebuffers()) {
             vkDestroyFramebuffer(m_vkDevice.getDevice(), framebuffer, nullptr);
         }
@@ -57,13 +121,19 @@ namespace Genesis {
         for (auto imageView : m_vkSwapChain.getSwapchainImageViews()) {
             vkDestroyImageView(m_vkDevice.getDevice(), imageView, nullptr);
         }
+
         vkDestroySwapchainKHR(m_vkDevice.getDevice(), m_vkSwapChain.getSwapchain(), nullptr);
         vkDestroyDevice(m_vkDevice.getDevice(), nullptr);
+
         if (m_enableValidationLayers) {
             VulkanRenderer::destroyDebugUtilsMessengerEXT(m_vkInstance, m_debugMessenger, nullptr);
         }
         vkDestroySurfaceKHR(m_vkInstance, m_vkSwapChain.getSurface(), nullptr);
         vkDestroyInstance(m_vkInstance, nullptr);
+    }
+
+    void VulkanRenderer::waitForIdle() {
+        vkDeviceWaitIdle(m_vkDevice.getDevice());
     }
 
     bool VulkanRenderer::createInstance() {
@@ -74,7 +144,7 @@ namespace Genesis {
 
         VkApplicationInfo appInfo{};
         appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-        appInfo.pApplicationName = "Hello Triangle";
+        appInfo.pApplicationName = "Hello Triangle";  // TODO: pass in program name from window
         appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
         appInfo.pEngineName = "Genesis";
         appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
@@ -101,6 +171,8 @@ namespace Genesis {
             createInfo.pNext = (VkDebugUtilsMessengerCreateInfoEXT*)&debugCreateInfo;
         } else {
             createInfo.enabledLayerCount = 0;
+
+            createInfo.pNext = nullptr;
         }
 
         if (vkCreateInstance(&createInfo, nullptr, &m_vkInstance) != VK_SUCCESS) {
@@ -151,6 +223,109 @@ namespace Genesis {
         return extensions;
     }
 
+    bool VulkanRenderer::createCommandPool() {
+        QueueFamilyIndices queueFamilyIndices = m_vkDevice.findQueueFamilies(m_vkDevice.getPhysicalDevice(), m_vkSwapChain.getSurface());
+
+        VkCommandPoolCreateInfo poolInfo{};
+        poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+        poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+        poolInfo.queueFamilyIndex = queueFamilyIndices.graphicsFamily.value();
+
+        if (vkCreateCommandPool(m_vkDevice.getDevice(), &poolInfo, nullptr, &m_vkCommandPool) != VK_SUCCESS) {
+            GN_CORE_ERROR("Failed to create command pool.");
+            return false;
+        }
+
+        GN_CORE_INFO("Vulkan command pool created successfully.");
+        return true;
+    }
+
+    bool VulkanRenderer::createCommandBuffer() {
+        VkCommandBufferAllocateInfo allocInfo{};
+        allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+        allocInfo.commandPool = m_vkCommandPool;
+        allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+        allocInfo.commandBufferCount = 1;
+
+        if (vkAllocateCommandBuffers(m_vkDevice.getDevice(), &allocInfo, &m_vkCommandBuffer) != VK_SUCCESS) {
+            GN_CORE_ERROR("Failed to allocate command buffers.");
+            return false;
+        }
+
+        GN_CORE_INFO("Vulkan command buffer created successfully.");
+        return true;
+    }
+
+    bool VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex) {
+        VkCommandBufferBeginInfo beginInfo{};
+        beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+        beginInfo.flags = 0;                   // Optional
+        beginInfo.pInheritanceInfo = nullptr;  // Optional
+
+        if (vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS) {
+            GN_CORE_ERROR("Unable to begin recording command buffer.");
+            return false;
+        }
+
+        VkRenderPassBeginInfo renderPassInfo{};
+        renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+        renderPassInfo.renderPass = m_vkPipeline.getRenderPass();
+        renderPassInfo.framebuffer = m_vkSwapChain.getSwapchainFramebuffers()[imageIndex];
+        renderPassInfo.renderArea.offset = {0, 0};
+        renderPassInfo.renderArea.extent = m_vkSwapChain.getSwapchainExtent();
+
+        VkClearValue clearColor = {{{0.0f, 0.0f, 0.0f, 1.0f}}};
+        renderPassInfo.clearValueCount = 1;
+        renderPassInfo.pClearValues = &clearColor;
+
+        vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_vkPipeline.getGraphicsPipeline());
+
+        VkViewport viewport{};
+        viewport.x = 0.0f;
+        viewport.y = 0.0f;
+        viewport.width = static_cast<float>(m_vkSwapChain.getSwapchainExtent().width);
+        viewport.height = static_cast<float>(m_vkSwapChain.getSwapchainExtent().height);
+        viewport.minDepth = 0.0f;
+        viewport.maxDepth = 1.0f;
+        vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
+
+        VkRect2D scissor{};
+        scissor.offset = {0, 0};
+        scissor.extent = m_vkSwapChain.getSwapchainExtent();
+        vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
+
+        vkCmdDraw(commandBuffer, 3, 1, 0, 0);
+
+        vkCmdEndRenderPass(commandBuffer);
+
+        if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS) {
+            GN_CORE_ERROR("Failed to record command buffer.");
+            return false;
+        }
+
+        return true;
+    }
+
+    bool VulkanRenderer::createSyncObjects() {
+        VkSemaphoreCreateInfo semaphoreInfo{};
+        semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+
+        VkFenceCreateInfo fenceInfo{};
+        fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+        fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+
+        if (vkCreateSemaphore(m_vkDevice.getDevice(), &semaphoreInfo, nullptr, &m_vkImageAvailableSemaphore) != VK_SUCCESS ||
+            vkCreateSemaphore(m_vkDevice.getDevice(), &semaphoreInfo, nullptr, &m_vkRenderFinishedSemaphore) != VK_SUCCESS ||
+            vkCreateFence(m_vkDevice.getDevice(), &fenceInfo, nullptr, &m_vkInFlightFence) != VK_SUCCESS) {
+            GN_CORE_ERROR("Failed to create semaphores.");
+            return false;
+        }
+
+        return true;
+    }
+
     VKAPI_ATTR VkBool32 VKAPI_CALL VulkanRenderer::debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
                                                                  VkDebugUtilsMessageTypeFlagsEXT messageType,
                                                                  const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
@@ -196,6 +371,7 @@ namespace Genesis {
             return false;
         }
 
+        GN_CORE_INFO("Vulkan debug messenger setup successfully.");
         return true;
     }
 

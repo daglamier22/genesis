@@ -17,17 +17,32 @@ namespace Genesis {
             ~VulkanRenderer();
 
             void init(std::shared_ptr<Window> window);
+            bool drawFrame();
             void shutdown();
+
+            void waitForIdle();
 
         private:
             bool createInstance();
             bool checkValidationLayerSupport();
             std::vector<const char*> getRequiredExtensions();
+            bool createCommandPool();
+            bool createCommandBuffer();
+
+            bool recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex);
+
+            bool createSyncObjects();
 
             VkInstance m_vkInstance;
             VulkanDevice m_vkDevice;
             VulkanSwapchain m_vkSwapChain;
             VulkanPipeline m_vkPipeline;
+            VkCommandPool m_vkCommandPool;
+            VkCommandBuffer m_vkCommandBuffer;
+
+            VkSemaphore m_vkImageAvailableSemaphore;
+            VkSemaphore m_vkRenderFinishedSemaphore;
+            VkFence m_vkInFlightFence;
 
             // Setup Debug Messenger
             bool setupDebugMessenger();

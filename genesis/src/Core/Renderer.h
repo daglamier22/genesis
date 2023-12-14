@@ -8,6 +8,8 @@ namespace Genesis {
             Renderer(std::shared_ptr<Window> window) {}
             virtual ~Renderer() {}
             virtual void init(std::shared_ptr<Window> window) = 0;
+            virtual bool drawFrame() = 0;
             virtual void shutdown() = 0;
+            virtual void waitForIdle() = 0;
     };
 }  // namespace Genesis
