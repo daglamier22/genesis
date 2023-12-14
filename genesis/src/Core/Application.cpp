@@ -28,7 +28,10 @@ namespace Genesis {
         while (m_isRunning) {
             GN_CORE_INFO("application::run");
             m_window->onUpdate();
+            m_renderer->drawFrame();
         }
+
+        m_renderer->waitForIdle();
     }
 
     void Application::shutdown() {
