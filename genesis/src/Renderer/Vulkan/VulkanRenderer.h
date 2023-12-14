@@ -6,6 +6,7 @@
 #include "Core/Renderer.h"
 #include "Platform/GLFWWindow.h"
 #include "VulkanDevice.h"
+#include "VulkanPipeline.h"
 #include "VulkanSupportTypes.h"
 #include "VulkanSwapchain.h"
 
@@ -26,6 +27,7 @@ namespace Genesis {
             VkInstance m_vkInstance;
             VulkanDevice m_vkDevice;
             VulkanSwapchain m_vkSwapChain;
+            VulkanPipeline m_vkPipeline;
 
             // Setup Debug Messenger
             bool setupDebugMessenger();

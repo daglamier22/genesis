@@ -34,9 +34,19 @@ namespace Genesis {
         if (!m_vkSwapChain.createImageViews(m_vkDevice)) {
             return;
         }
+        if (!m_vkPipeline.createRenderPass(m_vkDevice, m_vkSwapChain)) {
+            return;
+        }
+        if (!m_vkPipeline.createGraphicsPipeline(m_vkDevice, m_vkSwapChain)) {
+            return;
+        }
     }
 
     void VulkanRenderer::shutdown() {
+        vkDestroyPipeline(m_vkDevice.getDevice(), m_vkPipeline.getGraphicsPipeline(), nullptr);
+        vkDestroyPipelineLayout(m_vkDevice.getDevice(), m_vkPipeline.getPipelineLayout(), nullptr);
+        vkDestroyRenderPass(m_vkDevice.getDevice(), m_vkPipeline.getRenderPass(), nullptr);
+
         for (auto imageView : m_vkSwapChain.getSwapchainImageViews()) {
             vkDestroyImageView(m_vkDevice.getDevice(), imageView, nullptr);
         }

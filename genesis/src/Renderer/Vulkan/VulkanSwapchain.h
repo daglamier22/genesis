@@ -13,6 +13,8 @@ namespace Genesis {
             VkSwapchainKHR getSwapchain() const { return m_vkSwapchain; }
             std::vector<VkImage> getSwapchainImages() const { return m_vkSwapchainImages; }
             std::vector<VkImageView> getSwapchainImageViews() const { return m_vkSwapchainImageViews; }
+            VkFormat getSwapchainImageFormat() const { return m_vkSwapchainImageFormat; }
+            VkExtent2D getSwapchainExtent() const { return m_vkSwapchainExtent; }
 
             bool createSurface(std::shared_ptr<GLFWWindow> window, VkInstance instance);
             bool createSwapChain(std::shared_ptr<GLFWWindow> window, VulkanDevice device);
