@@ -2,7 +2,9 @@
 
 #include <vulkan/vulkan.h>
 
-#include <glm.hpp>
+#define GLM_FORCE_RADIANS
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
 
 #include "Core/EventSystem.h"
 #include "Core/Logger.h"
@@ -57,6 +59,12 @@ namespace Genesis {
             }
     };
 
+    struct UniformBufferObject {
+            alignas(16) glm::mat4 model;
+            alignas(16) glm::mat4 view;
+            alignas(16) glm::mat4 projection;
+    };
+
     const std::vector<Vertex> vertices = {
         {{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}},
         {{0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}},
@@ -102,6 +110,7 @@ namespace Genesis {
             void cleanupSwapChain();
             void recreateSwapChain();
 
+            bool createDescriptorSetLayout();
             bool createGraphicsPipeline();
             bool createRenderPass();
             VkShaderModule createShaderModule(const std::vector<char>& code);
@@ -114,6 +123,10 @@ namespace Genesis {
 
             bool createVertexBuffer();
             bool createIndexBuffer();
+            bool createUniformBuffers();
+            bool createDescriptorPool();
+            bool createDescriptorSets();
+            void updateUniformBuffer(uint32_t currentImage);
             bool createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory);
             void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
             uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
@@ -135,6 +148,8 @@ namespace Genesis {
             VkExtent2D m_vkSwapchainExtent;
 
             VkRenderPass m_vkRenderPass;
+            VkDescriptorSetLayout m_vkDescriptorSetLayout;
+            std::vector<VkDescriptorSet> m_vkDescriptorSets;
             VkPipelineLayout m_vkPipelineLayout;
             VkPipeline m_vkGraphicsPipeline;
 
@@ -145,6 +160,12 @@ namespace Genesis {
             VkDeviceMemory m_vkVertexBufferMemory;
             VkBuffer m_vkIndexBuffer;
             VkDeviceMemory m_vkIndexBufferMemory;
+
+            std::vector<VkBuffer> m_vkUniformBuffers;
+            std::vector<VkDeviceMemory> m_vkUniformBuffersMemory;
+            std::vector<void*> m_vkUniformBuffersMapped;
+
+            VkDescriptorPool m_vkDescriptorPool;
 
             std::vector<VkSemaphore> m_vkImageAvailableSemaphores;
             std::vector<VkSemaphore> m_vkRenderFinishedSemaphores;

@@ -7,7 +7,7 @@
                 "${workspaceFolder}/genesis/src/**",
                 "${workspaceFolder}/build/_deps/quill-src/quill/include",
                 "${workspaceFolder}/build/_deps/glfw-src/include",
-                "${workspaceFolder}/build/_deps/glm-src/glm",
+                "${workspaceFolder}/build/_deps/glm-src",
                 "${VULKAN_SDK}/include"
             ],
             "defines": [

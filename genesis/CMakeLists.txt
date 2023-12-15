@@ -28,7 +28,7 @@ target_include_directories(genesis
         ${CMAKE_CURRENT_SOURCE_DIR}/src
         ${quill_SOURCE_DIR}/quill/include
         ${glfw_SOURCE_DIR}/include
-        ${glm_SOURCE_DIR}/glm
+        ${glm_SOURCE_DIR}
         ${Vulkan_INCLUDE_DIR}
 )
 

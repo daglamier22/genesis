@@ -1,5 +1,7 @@
 #include "VulkanRenderer.h"
 
+#include <chrono>
+
 #include "Core/Logger.h"
 
 namespace Genesis {
@@ -41,6 +43,9 @@ namespace Genesis {
         if (!createRenderPass()) {
             return;
         }
+        if (!createDescriptorSetLayout()) {
+            return;
+        }
         if (!createGraphicsPipeline()) {
             return;
         }
@@ -54,6 +59,15 @@ namespace Genesis {
             return;
         }
         if (!createIndexBuffer()) {
+            return;
+        }
+        if (!createUniformBuffers()) {
+            return;
+        }
+        if (!createDescriptorPool()) {
+            return;
+        }
+        if (!createDescriptorSets()) {
             return;
         }
         if (!createCommandBuffers()) {
@@ -77,6 +91,8 @@ namespace Genesis {
             GN_CORE_ERROR("Failed to acquire swwap chain image.");
             return false;
         }
+
+        updateUniformBuffer(m_currentFrame);
 
         // Only reset the fence if we are submitting work
         vkResetFences(m_vkDevice, 1, &m_vkInFlightFences[m_currentFrame]);
@@ -141,6 +157,15 @@ namespace Genesis {
             vkDestroySemaphore(m_vkDevice, m_vkRenderFinishedSemaphores[i], nullptr);
             vkDestroyFence(m_vkDevice, m_vkInFlightFences[i], nullptr);
         }
+
+        for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+            vkDestroyBuffer(m_vkDevice, m_vkUniformBuffers[i], nullptr);
+            vkFreeMemory(m_vkDevice, m_vkUniformBuffersMemory[i], nullptr);
+        }
+
+        vkDestroyDescriptorPool(m_vkDevice, m_vkDescriptorPool, nullptr);
+
+        vkDestroyDescriptorSetLayout(m_vkDevice, m_vkDescriptorSetLayout, nullptr);
 
         vkDestroyBuffer(m_vkDevice, m_vkIndexBuffer, nullptr);
         vkFreeMemory(m_vkDevice, m_vkIndexBufferMemory, nullptr);
@@ -600,6 +625,28 @@ namespace Genesis {
         GN_CORE_INFO("Vulkan swapchain recreated.");
     }
 
+    bool VulkanRenderer::createDescriptorSetLayout() {
+        VkDescriptorSetLayoutBinding uboLayoutBinding{};
+        uboLayoutBinding.binding = 0;
+        uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        uboLayoutBinding.descriptorCount = 1;
+        uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+        uboLayoutBinding.pImmutableSamplers = nullptr;  // Optional
+
+        VkDescriptorSetLayoutCreateInfo layoutInfo{};
+        layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+        layoutInfo.bindingCount = 1;
+        layoutInfo.pBindings = &uboLayoutBinding;
+
+        if (vkCreateDescriptorSetLayout(m_vkDevice, &layoutInfo, nullptr, &m_vkDescriptorSetLayout) != VK_SUCCESS) {
+            GN_CORE_ERROR("Failed to create descriptor set layout.");
+            return false;
+        }
+
+        GN_CORE_INFO("Vulkan descriptor set layour created successfully.");
+        return true;
+    }
+
     bool VulkanRenderer::createGraphicsPipeline() {
         auto vertShaderCode = readFile("assets/shaders/shader.vert.spv");
         if (vertShaderCode.size() == 0) {
@@ -665,7 +712,7 @@ namespace Genesis {
         rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
         rasterizer.lineWidth = 1.0f;
         rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
-        rasterizer.frontFace = VK_FRONT_FACE_CLOCKWISE;
+        rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
         rasterizer.depthBiasEnable = VK_FALSE;
         rasterizer.depthBiasConstantFactor = 0.0f;  // Optional
         rasterizer.depthBiasClamp = 0.0f;           // Optional
@@ -711,8 +758,8 @@ namespace Genesis {
 
         VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
         pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-        pipelineLayoutInfo.setLayoutCount = 0;             // Optional
-        pipelineLayoutInfo.pSetLayouts = nullptr;          // Optional
+        pipelineLayoutInfo.setLayoutCount = 1;
+        pipelineLayoutInfo.pSetLayouts = &m_vkDescriptorSetLayout;
         pipelineLayoutInfo.pushConstantRangeCount = 0;     // Optional
         pipelineLayoutInfo.pPushConstantRanges = nullptr;  // Optional
 
@@ -910,6 +957,8 @@ namespace Genesis {
 
         vkCmdBindIndexBuffer(commandBuffer, m_vkIndexBuffer, 0, VK_INDEX_TYPE_UINT16);
 
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_vkPipelineLayout, 0, 1, &m_vkDescriptorSets[m_currentFrame], 0, nullptr);
+
         vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);
 
         vkCmdEndRenderPass(commandBuffer);
@@ -1004,6 +1053,98 @@ namespace Genesis {
         vkFreeMemory(m_vkDevice, stagingBufferMemory, nullptr);
 
         return true;
+    }
+
+    bool VulkanRenderer::createUniformBuffers() {
+        VkDeviceSize bufferSize = sizeof(UniformBufferObject);
+
+        m_vkUniformBuffers.resize(MAX_FRAMES_IN_FLIGHT);
+        m_vkUniformBuffersMemory.resize(MAX_FRAMES_IN_FLIGHT);
+        m_vkUniformBuffersMapped.resize(MAX_FRAMES_IN_FLIGHT);
+
+        for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+            createBuffer(bufferSize,
+                         VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+                         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                         m_vkUniformBuffers[i], m_vkUniformBuffersMemory[i]);
+            vkMapMemory(m_vkDevice, m_vkUniformBuffersMemory[i], 0, bufferSize, 0, &m_vkUniformBuffersMapped[i]);
+        }
+
+        GN_CORE_INFO("Vulkan uniform buffers created successfully.");
+        return true;
+    }
+
+    bool VulkanRenderer::createDescriptorPool() {
+        VkDescriptorPoolSize poolSize{};
+        poolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        poolSize.descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+
+        VkDescriptorPoolCreateInfo poolInfo{};
+        poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+        poolInfo.poolSizeCount = 1;
+        poolInfo.pPoolSizes = &poolSize;
+        poolInfo.maxSets = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+
+        if (vkCreateDescriptorPool(m_vkDevice, &poolInfo, nullptr, &m_vkDescriptorPool) != VK_SUCCESS) {
+            GN_CORE_ERROR("Failed to create descriptor pool.");
+            return false;
+        }
+
+        GN_CORE_INFO("Vulkan descriptor pool created successfully.");
+        return true;
+    }
+
+    bool VulkanRenderer::createDescriptorSets() {
+        std::vector<VkDescriptorSetLayout> layouts(MAX_FRAMES_IN_FLIGHT, m_vkDescriptorSetLayout);
+        VkDescriptorSetAllocateInfo allocInfo{};
+        allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+        allocInfo.descriptorPool = m_vkDescriptorPool;
+        allocInfo.descriptorSetCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+        allocInfo.pSetLayouts = layouts.data();
+
+        m_vkDescriptorSets.resize(MAX_FRAMES_IN_FLIGHT);
+        if (vkAllocateDescriptorSets(m_vkDevice, &allocInfo, m_vkDescriptorSets.data()) != VK_SUCCESS) {
+            GN_CORE_ERROR("Failed to allocate descriptor sets.");
+            return false;
+        }
+
+        for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+            VkDescriptorBufferInfo bufferInfo{};
+            bufferInfo.buffer = m_vkUniformBuffers[i];
+            bufferInfo.offset = 0;
+            bufferInfo.range = sizeof(UniformBufferObject);
+
+            VkWriteDescriptorSet descriptorWrite{};
+            descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            descriptorWrite.dstSet = m_vkDescriptorSets[i];
+            descriptorWrite.dstBinding = 0;
+            descriptorWrite.dstArrayElement = 0;
+            descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+            descriptorWrite.descriptorCount = 1;
+            descriptorWrite.pBufferInfo = &bufferInfo;
+            descriptorWrite.pImageInfo = nullptr;        // Optional
+            descriptorWrite.pTexelBufferView = nullptr;  // Optionl
+
+            vkUpdateDescriptorSets(m_vkDevice, 1, &descriptorWrite, 0, nullptr);
+        }
+
+        GN_CORE_INFO("Vulkan descriptor sets created successfully.");
+        return true;
+    }
+
+    void VulkanRenderer::updateUniformBuffer(uint32_t currentImage) {
+        static auto startTime = std::chrono::high_resolution_clock::now();
+
+        auto currentTime = std::chrono::high_resolution_clock::now();
+        float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
+
+        UniformBufferObject ubo{};
+        ubo.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+        ubo.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+        ubo.projection = glm::perspective(glm::radians(45.0f), m_vkSwapchainExtent.width / (float)m_vkSwapchainExtent.height, 0.1f, 10.0f);
+        ubo.projection[1][1] *= -1;
+
+        memcpy(m_vkUniformBuffersMapped[currentImage], &ubo, sizeof(ubo));
     }
 
     bool VulkanRenderer::createBuffer(VkDeviceSize size,
