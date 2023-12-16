@@ -134,6 +134,7 @@ namespace Genesis {
             VkInstance m_vkInstance;
 
             VkPhysicalDevice m_vkPhysicalDevice = VK_NULL_HANDLE;
+            VkPhysicalDeviceProperties m_vkPhysicalDeviceProperties;
             VkDevice m_vkDevice;
             VkQueue m_vkGraphicsQueue;
             VkQueue m_vkPresentQueue;

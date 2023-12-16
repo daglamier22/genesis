@@ -299,6 +299,7 @@ namespace Genesis {
             GN_CORE_ERROR("Failed to find GPUs with Vulkan support.");
             return false;
         }
+        GN_CORE_TRACE("Discovered {} devices with Vulkan support.", deviceCount);
 
         std::vector<VkPhysicalDevice> devices(deviceCount);
         vkEnumeratePhysicalDevices(m_vkInstance, &deviceCount, devices.data());
@@ -314,7 +315,30 @@ namespace Genesis {
             return false;
         }
 
+        vkGetPhysicalDeviceProperties(m_vkPhysicalDevice, &m_vkPhysicalDeviceProperties);
+        std::string deviceType;
+        switch (m_vkPhysicalDeviceProperties.deviceType) {
+            default:
+            case VK_PHYSICAL_DEVICE_TYPE_OTHER:
+                deviceType = "Unknown";
+                break;
+            case VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU:
+                deviceType = "Integrated";
+            case VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU:
+                deviceType = "Discrete";
+            case VK_PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU:
+                deviceType = "Virtual";
+            case VK_PHYSICAL_DEVICE_TYPE_CPU:
+                deviceType = "CPU";
+        }
+
         GN_CORE_INFO("Vulkan physical device selected.");
+        GN_CORE_TRACE("\tDevice selected: {}", m_vkPhysicalDeviceProperties.deviceName);
+        GN_CORE_TRACE("\tDevice type: {}", deviceType);
+        GN_CORE_TRACE("\tAPI version: {}.{}.{}",
+                      VK_VERSION_MAJOR(m_vkPhysicalDeviceProperties.apiVersion),
+                      VK_VERSION_MINOR(m_vkPhysicalDeviceProperties.apiVersion),
+                      VK_VERSION_PATCH(m_vkPhysicalDeviceProperties.apiVersion));
         return true;
     }
 
@@ -341,7 +365,9 @@ namespace Genesis {
 
         std::set<std::string> requiredExtensions(m_deviceExtensions.begin(), m_deviceExtensions.end());
 
+        GN_CORE_TRACE("Available Vulkan extensions:");
         for (const auto& extension : availableExtensions) {
+            GN_CORE_TRACE("\t{}", extension.extensionName);
             requiredExtensions.erase(extension.extensionName);
         }
 
