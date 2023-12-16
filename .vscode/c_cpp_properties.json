@@ -8,6 +8,7 @@
                 "${workspaceFolder}/build/_deps/quill-src/quill/include",
                 "${workspaceFolder}/build/_deps/glfw-src/include",
                 "${workspaceFolder}/build/_deps/glm-src",
+                "${workspaceFolder}/build/_deps/stb-src",
                 "${VULKAN_SDK}/include"
             ],
             "defines": [

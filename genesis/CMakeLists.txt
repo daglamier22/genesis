@@ -30,6 +30,7 @@ target_include_directories(genesis
         ${glfw_SOURCE_DIR}/include
         ${glm_SOURCE_DIR}
         ${Vulkan_INCLUDE_DIR}
+        ${stb_SOURCE_DIR}
 )
 
 target_compile_options(genesis PRIVATE -Werror)

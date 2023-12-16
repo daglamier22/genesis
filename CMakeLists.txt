@@ -21,7 +21,11 @@ FetchContent_Declare(glm
 #     URL https://sdk.lunarg.com/sdk/download/1.3.268.0/linux/vulkansdk-linux-x86_64-1.3.268.0.tar.xz
 #     URL_HASH SHA256=d23343736247828ff5b3b6b1b7fd83a72b5df1a54b2527ae3663cebdfee75842
 # )
-FetchContent_MakeAvailable(quill glfw glm)
+# fetch stb libraries for stb_image (image file loading)
+FetchContent_Declare(stb
+    GIT_REPOSITORY https://github.com/nothings/stb
+)
+FetchContent_MakeAvailable(quill glfw glm stb)
 find_package(Vulkan REQUIRED)
 
 project(genesis VERSION 0.1.0 LANGUAGES C CXX)
