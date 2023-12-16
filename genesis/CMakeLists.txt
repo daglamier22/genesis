@@ -37,8 +37,10 @@ target_compile_features(genesis PRIVATE cxx_std_20)
 target_precompile_headers(genesis
     PRIVATE
         <string>
+        <vector>
         <memory>
         <set>
+        <optional>
         <quill/Quill.h>
         <vulkan/vulkan.h>
 )
