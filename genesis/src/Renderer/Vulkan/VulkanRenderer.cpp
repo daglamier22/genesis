@@ -444,7 +444,7 @@ namespace Genesis {
 
     bool VulkanRenderer::createSurface() {
         std::shared_ptr<GLFWWindow> window = std::dynamic_pointer_cast<GLFWWindow>(m_window);
-        if (glfwCreateWindowSurface(m_vkInstance, (GLFWwindow*)window->getWindow(), nullptr, &m_vkSurface) != VK_SUCCESS) {
+        if (!window->createVulkanSurface(m_vkInstance, &m_vkSurface)) {
             GN_CORE_ERROR("Failed to create window surface.");
             return false;
         }

@@ -24,6 +24,8 @@ namespace Genesis {
 
             void waitForWindowToBeRestored(int* width, int* height);
 
+            bool createVulkanSurface(VkInstance instance, VkSurfaceKHR* surface);
+
         private:
             Key translateKey(int key);
             Button translateButton(int button);

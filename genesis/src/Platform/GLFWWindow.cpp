@@ -144,6 +144,14 @@ namespace Genesis {
         glfwWaitEvents();
     }
 
+    bool GLFWWindow::createVulkanSurface(VkInstance instance, VkSurfaceKHR* surface) {
+        if (glfwCreateWindowSurface(instance, m_window, nullptr, surface) != VK_SUCCESS) {
+            return false;
+        }
+
+        return true;
+    }
+
     Key GLFWWindow::translateKey(int key) {
         switch (key) {
             case GLFW_KEY_BACKSPACE:
