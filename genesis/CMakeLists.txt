@@ -31,6 +31,7 @@ target_include_directories(genesis
         ${glm_SOURCE_DIR}
         ${Vulkan_INCLUDE_DIR}
         ${stb_SOURCE_DIR}
+        ${tinyobjloader_SOURCE_DIR}
 )
 
 target_compile_options(genesis PRIVATE -Werror)

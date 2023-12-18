@@ -25,7 +25,11 @@ FetchContent_Declare(glm
 FetchContent_Declare(stb
     GIT_REPOSITORY https://github.com/nothings/stb
 )
-FetchContent_MakeAvailable(quill glfw glm stb)
+FetchContent_Declare(tinyobjloader
+    GIT_REPOSITORY https://github.com/tinyobjloader/tinyobjloader
+    GIT_TAG origin/release
+)
+FetchContent_MakeAvailable(quill glfw glm stb tinyobjloader)
 find_package(Vulkan REQUIRED)
 
 project(genesis VERSION 0.1.0 LANGUAGES C CXX)

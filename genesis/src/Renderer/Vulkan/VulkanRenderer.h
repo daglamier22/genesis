@@ -4,8 +4,10 @@
 
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
+#define GLM_ENABLE_EXPERIMENTAL
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtx/hash.hpp>
 
 #include "Core/EventSystem.h"
 #include "Core/Logger.h"
@@ -13,23 +15,6 @@
 #include "Platform/GLFWWindow.h"
 
 namespace Genesis {
-    const int MAX_FRAMES_IN_FLIGHT = 2;
-
-    struct QueueFamilyIndices {
-            std::optional<uint32_t> graphicsFamily;
-            std::optional<uint32_t> presentFamily;
-
-            bool isComplete() {
-                return graphicsFamily.has_value() && presentFamily.has_value();
-            }
-    };
-
-    struct SwapChainSupportDetails {
-            VkSurfaceCapabilitiesKHR capabilities;
-            std::vector<VkSurfaceFormatKHR> formats;
-            std::vector<VkPresentModeKHR> presentModes;
-    };
-
     struct Vertex {
             glm::vec3 pos;
             glm::vec3 color;
@@ -64,40 +49,47 @@ namespace Genesis {
 
                 return attributeDescriptions;
             }
+
+            bool operator==(const Vertex& other) const {
+                return pos == other.pos && color == other.color && texCoord == other.texCoord;
+            }
+    };
+}  // namespace Genesis
+
+namespace std {
+    template <>
+    struct hash<Genesis::Vertex> {
+            size_t operator()(Genesis::Vertex const& vertex) const {
+                return ((hash<glm::vec3>()(vertex.pos) ^ (hash<glm::vec3>()(vertex.color) << 1)) >> 1) ^ (hash<glm::vec2>()(vertex.texCoord) << 1);
+            }
+    };
+};  // namespace std
+
+namespace Genesis {
+    const int MAX_FRAMES_IN_FLIGHT = 2;
+
+    const std::string MODEL_PATH = "assets/models/viking_room.obj";
+    const std::string TEXTURE_PATH = "assets/textures/viking_room.png";
+
+    struct QueueFamilyIndices {
+            std::optional<uint32_t> graphicsFamily;
+            std::optional<uint32_t> presentFamily;
+
+            bool isComplete() {
+                return graphicsFamily.has_value() && presentFamily.has_value();
+            }
+    };
+
+    struct SwapChainSupportDetails {
+            VkSurfaceCapabilitiesKHR capabilities;
+            std::vector<VkSurfaceFormatKHR> formats;
+            std::vector<VkPresentModeKHR> presentModes;
     };
 
     struct UniformBufferObject {
             alignas(16) glm::mat4 model;
             alignas(16) glm::mat4 view;
             alignas(16) glm::mat4 projection;
-    };
-
-    const std::vector<Vertex> vertices = {
-        {{-0.5f, -0.5f, 0.0f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f}},
-        {{0.5f, -0.5f, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}},
-        {{0.5f, 0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f}},
-        {{-0.5f, 0.5f, 0.0f}, {1.0f, 1.0f, 1.0f}, {1.0f, 1.0f}},
-
-        {{-0.5f, -0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f}},
-        {{0.5f, -0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}},
-        {{0.5f, 0.5f, -0.5f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f}},
-        {{-0.5f, 0.5f, -0.5f}, {1.0f, 1.0f, 1.0f}, {1.0f, 1.0f}},
-    };
-
-    const std::vector<uint16_t> indices = {
-        0,
-        1,
-        2,
-        2,
-        3,
-        0,
-
-        4,
-        5,
-        6,
-        6,
-        7,
-        4,
     };
 
     class VulkanRenderer : public Renderer {
@@ -167,6 +159,7 @@ namespace Genesis {
             bool recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex);
             bool createSyncObjects();
 
+            bool loadModel();
             bool createVertexBuffer();
             bool createIndexBuffer();
             bool createUniformBuffers();
@@ -219,6 +212,8 @@ namespace Genesis {
             VkImageView m_vkTextureImageView;
             VkSampler m_vkTextureSampler;
 
+            std::vector<Vertex> m_vertices;
+            std::vector<uint32_t> m_indices;
             VkBuffer m_vkVertexBuffer;
             VkDeviceMemory m_vkVertexBufferMemory;
             VkBuffer m_vkIndexBuffer;

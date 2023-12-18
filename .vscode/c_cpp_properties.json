@@ -9,6 +9,7 @@
                 "${workspaceFolder}/build/_deps/glfw-src/include",
                 "${workspaceFolder}/build/_deps/glm-src",
                 "${workspaceFolder}/build/_deps/stb-src",
+                "${workspaceFolder}/build/_deps/tinyobjloader-src",
                 "${VULKAN_SDK}/include"
             ],
             "defines": [
