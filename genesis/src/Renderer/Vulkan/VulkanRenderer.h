@@ -3,6 +3,7 @@
 #include <vulkan/vulkan.h>
 
 #define GLM_FORCE_RADIANS
+#define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
@@ -30,7 +31,7 @@ namespace Genesis {
     };
 
     struct Vertex {
-            glm::vec2 pos;
+            glm::vec3 pos;
             glm::vec3 color;
             glm::vec2 texCoord;
 
@@ -48,7 +49,7 @@ namespace Genesis {
 
                 attributeDescriptions[0].binding = 0;
                 attributeDescriptions[0].location = 0;
-                attributeDescriptions[0].format = VK_FORMAT_R32G32_SFLOAT;
+                attributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
                 attributeDescriptions[0].offset = offsetof(Vertex, pos);
 
                 attributeDescriptions[1].binding = 0;
@@ -72,14 +73,32 @@ namespace Genesis {
     };
 
     const std::vector<Vertex> vertices = {
-        {{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f}},
-        {{0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}},
-        {{0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f}},
-        {{-0.5f, 0.5f}, {1.0f, 1.0f, 1.0f}, {1.0f, 1.0f}},
+        {{-0.5f, -0.5f, 0.0f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f}},
+        {{0.5f, -0.5f, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}},
+        {{0.5f, 0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f}},
+        {{-0.5f, 0.5f, 0.0f}, {1.0f, 1.0f, 1.0f}, {1.0f, 1.0f}},
+
+        {{-0.5f, -0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f}},
+        {{0.5f, -0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}},
+        {{0.5f, 0.5f, -0.5f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f}},
+        {{-0.5f, 0.5f, -0.5f}, {1.0f, 1.0f, 1.0f}, {1.0f, 1.0f}},
     };
 
     const std::vector<uint16_t> indices = {
-        0, 1, 2, 2, 3, 0};
+        0,
+        1,
+        2,
+        2,
+        3,
+        0,
+
+        4,
+        5,
+        6,
+        6,
+        7,
+        4,
+    };
 
     class VulkanRenderer : public Renderer {
         public:
@@ -123,9 +142,14 @@ namespace Genesis {
             static std::vector<char> readFile(const std::string& filename);
 
             bool createCommandPool();
+            bool createDepthResources();
+            VkFormat findSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features);
+            VkFormat findDepthFormat();
+            bool hasStencilComponent(VkFormat format);
+
             bool createTextureImage();
             bool createTextureImageView();
-            bool createImageView(VkImage image, VkFormat format, VkImageView* imageView);
+            bool createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags, VkImageView* imageView);
             bool createTextureSampler();
             bool createImage(
                 uint32_t width,
@@ -138,6 +162,7 @@ namespace Genesis {
                 VkDeviceMemory& imageMemory);
             bool transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout);
             void copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height);
+
             bool createCommandBuffers();
             bool recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex);
             bool createSyncObjects();
@@ -184,6 +209,10 @@ namespace Genesis {
 
             VkCommandPool m_vkCommandPool;
             std::vector<VkCommandBuffer> m_vkCommandBuffers;
+
+            VkImage m_vkDepthImage;
+            VkDeviceMemory m_vkDepthImageMemory;
+            VkImageView m_vkDepthImageView;
 
             VkImage m_vkTextureImage;
             VkDeviceMemory m_vkTextureImageMemory;
