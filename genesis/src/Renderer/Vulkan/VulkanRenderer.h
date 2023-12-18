@@ -32,6 +32,7 @@ namespace Genesis {
     struct Vertex {
             glm::vec2 pos;
             glm::vec3 color;
+            glm::vec2 texCoord;
 
             static VkVertexInputBindingDescription getBindingDescription() {
                 VkVertexInputBindingDescription bindingDescription{};
@@ -42,8 +43,8 @@ namespace Genesis {
                 return bindingDescription;
             }
 
-            static std::array<VkVertexInputAttributeDescription, 2> getAttributeDescriptions() {
-                std::array<VkVertexInputAttributeDescription, 2> attributeDescriptions{};
+            static std::array<VkVertexInputAttributeDescription, 3> getAttributeDescriptions() {
+                std::array<VkVertexInputAttributeDescription, 3> attributeDescriptions{};
 
                 attributeDescriptions[0].binding = 0;
                 attributeDescriptions[0].location = 0;
@@ -54,6 +55,11 @@ namespace Genesis {
                 attributeDescriptions[1].location = 1;
                 attributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
                 attributeDescriptions[1].offset = offsetof(Vertex, color);
+
+                attributeDescriptions[2].binding = 0;
+                attributeDescriptions[2].location = 2;
+                attributeDescriptions[2].format = VK_FORMAT_R32G32_SFLOAT;
+                attributeDescriptions[2].offset = offsetof(Vertex, texCoord);
 
                 return attributeDescriptions;
             }
@@ -66,10 +72,10 @@ namespace Genesis {
     };
 
     const std::vector<Vertex> vertices = {
-        {{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}},
-        {{0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}},
-        {{0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}},
-        {{-0.5f, 0.5f}, {1.0f, 1.0f, 1.0f}},
+        {{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f}},
+        {{0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}},
+        {{0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f}},
+        {{-0.5f, 0.5f}, {1.0f, 1.0f, 1.0f}, {1.0f, 1.0f}},
     };
 
     const std::vector<uint16_t> indices = {
@@ -117,6 +123,21 @@ namespace Genesis {
             static std::vector<char> readFile(const std::string& filename);
 
             bool createCommandPool();
+            bool createTextureImage();
+            bool createTextureImageView();
+            bool createImageView(VkImage image, VkFormat format, VkImageView* imageView);
+            bool createTextureSampler();
+            bool createImage(
+                uint32_t width,
+                uint32_t height,
+                VkFormat format,
+                VkImageTiling tiling,
+                VkImageUsageFlags usage,
+                VkMemoryPropertyFlags properties,
+                VkImage& image,
+                VkDeviceMemory& imageMemory);
+            bool transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout);
+            void copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height);
             bool createCommandBuffers();
             bool recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex);
             bool createSyncObjects();
@@ -127,7 +148,14 @@ namespace Genesis {
             bool createDescriptorPool();
             bool createDescriptorSets();
             void updateUniformBuffer(uint32_t currentImage);
-            bool createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory);
+            bool createBuffer(
+                VkDeviceSize size,
+                VkBufferUsageFlags usage,
+                VkMemoryPropertyFlags properties,
+                VkBuffer& buffer,
+                VkDeviceMemory& bufferMemory);
+            VkCommandBuffer beginSingleTimeCommands();
+            void endSignleTimeCommands(VkCommandBuffer commandBuffer);
             void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
             uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
 
@@ -156,6 +184,11 @@ namespace Genesis {
 
             VkCommandPool m_vkCommandPool;
             std::vector<VkCommandBuffer> m_vkCommandBuffers;
+
+            VkImage m_vkTextureImage;
+            VkDeviceMemory m_vkTextureImageMemory;
+            VkImageView m_vkTextureImageView;
+            VkSampler m_vkTextureSampler;
 
             VkBuffer m_vkVertexBuffer;
             VkDeviceMemory m_vkVertexBufferMemory;
