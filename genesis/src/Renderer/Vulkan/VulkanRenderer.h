@@ -134,6 +134,7 @@ namespace Genesis {
             static std::vector<char> readFile(const std::string& filename);
 
             bool createCommandPool();
+            bool createColorResources();
             bool createDepthResources();
             VkFormat findSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features);
             VkFormat findDepthFormat();
@@ -141,6 +142,7 @@ namespace Genesis {
 
             bool createTextureImage();
             bool generateMipmaps(VkImage image, VkFormat imageFormat, int32_t texWidth, int32_t texHeight, uint32_t mipLevels);
+            VkSampleCountFlagBits getMaxUsableSampleCount();
             bool createTextureImageView();
             bool createImageView(VkImage image,
                                  VkFormat format,
@@ -152,6 +154,7 @@ namespace Genesis {
                 uint32_t width,
                 uint32_t height,
                 uint32_t mipLevels,
+                VkSampleCountFlagBits numSamples,
                 VkFormat format,
                 VkImageTiling tiling,
                 VkImageUsageFlags usage,
@@ -191,6 +194,7 @@ namespace Genesis {
 
             VkPhysicalDevice m_vkPhysicalDevice = VK_NULL_HANDLE;
             VkPhysicalDeviceProperties m_vkPhysicalDeviceProperties;
+            VkSampleCountFlagBits m_vkMsaaSamples = VK_SAMPLE_COUNT_1_BIT;
             VkDevice m_vkDevice;
             VkQueue m_vkGraphicsQueue;
             VkQueue m_vkPresentQueue;
@@ -212,6 +216,10 @@ namespace Genesis {
 
             VkCommandPool m_vkCommandPool;
             std::vector<VkCommandBuffer> m_vkCommandBuffers;
+
+            VkImage m_vkColorImage;
+            VkDeviceMemory m_vkColorImageMemory;
+            VkImageView m_vkColorImageView;
 
             VkImage m_vkDepthImage;
             VkDeviceMemory m_vkDepthImageMemory;
