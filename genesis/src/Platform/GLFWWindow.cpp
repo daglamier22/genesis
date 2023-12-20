@@ -152,6 +152,10 @@ namespace Genesis {
         return true;
     }
 
+    const char** GLFWWindow::getRequiredVulkanInstanceExtensions(uint32_t* glfwExtensionCount) {
+        return glfwGetRequiredInstanceExtensions(glfwExtensionCount);
+    }
+
     Key GLFWWindow::translateKey(int key) {
         switch (key) {
             case GLFW_KEY_BACKSPACE:

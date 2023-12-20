@@ -13,6 +13,7 @@
 #include <chrono>
 
 #include "Core/Logger.h"
+#include "Platform/GLFWWindow.h"
 
 namespace Genesis {
     VulkanRenderer::VulkanRenderer(std::shared_ptr<Window> window) : Renderer(window) {
@@ -322,7 +323,8 @@ namespace Genesis {
         uint32_t glfwExtensionCount = 0;
         const char** glfwExtensions;
 
-        glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
+        std::shared_ptr<GLFWWindow> window = std::dynamic_pointer_cast<GLFWWindow>(m_window);
+        glfwExtensions = window->getRequiredVulkanInstanceExtensions(&glfwExtensionCount);
 
         std::vector<const char*> extensions(glfwExtensions, glfwExtensions + glfwExtensionCount);
 
@@ -1348,8 +1350,6 @@ namespace Genesis {
         barrier.subresourceRange.levelCount = mipLevels;
         barrier.subresourceRange.baseArrayLayer = 0;
         barrier.subresourceRange.layerCount = 1;
-        barrier.srcAccessMask = 0;  // TODO
-        barrier.dstAccessMask = 0;  // TODO
 
         VkPipelineStageFlags sourceStage;
         VkPipelineStageFlags destinationStage;

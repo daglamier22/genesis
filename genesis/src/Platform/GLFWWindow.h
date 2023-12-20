@@ -25,6 +25,7 @@ namespace Genesis {
             void waitForWindowToBeRestored(int* width, int* height);
 
             bool createVulkanSurface(VkInstance instance, VkSurfaceKHR* surface);
+            const char** getRequiredVulkanInstanceExtensions(uint32_t* glfwExtensionCount);
 
         private:
             Key translateKey(int key);

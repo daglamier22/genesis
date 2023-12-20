@@ -12,7 +12,6 @@
 #include "Core/EventSystem.h"
 #include "Core/Logger.h"
 #include "Core/Renderer.h"
-#include "Platform/GLFWWindow.h"
 
 namespace Genesis {
     struct Vertex {
