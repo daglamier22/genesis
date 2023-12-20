@@ -1,6 +1,6 @@
 #pragma once
 
-#include <vulkan/vulkan.h>
+#include <vulkan/vulkan.hpp>
 
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
@@ -106,7 +106,8 @@ namespace Genesis {
             void onResizeEvent(Event& e);
 
             bool createInstance();
-            bool checkValidationLayerSupport();
+            bool checkInstanceExtensionSupport(std::vector<const char*>& extensions);
+            bool checkValidationLayerSupport(std::vector<const char*>& layers);
             std::vector<const char*> getRequiredExtensions();
 
             bool pickPhysicalDevice();
@@ -189,7 +190,7 @@ namespace Genesis {
             void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
             uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
 
-            VkInstance m_vkInstance;
+            vk::Instance m_vkInstance{nullptr};
 
             VkPhysicalDevice m_vkPhysicalDevice = VK_NULL_HANDLE;
             VkPhysicalDeviceProperties m_vkPhysicalDeviceProperties;
@@ -251,25 +252,14 @@ namespace Genesis {
             bool m_framebufferResized = false;
 
             bool setupDebugMessenger();
-            void populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo);
             static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
                 VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
                 VkDebugUtilsMessageTypeFlagsEXT messageType,
                 const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
                 void* pUserData);
-            static VkResult createDebugUtilsMessengerEXT(
-                VkInstance instance,
-                const VkDebugUtilsMessengerCreateInfoEXT* pCreateInfo,
-                const VkAllocationCallbacks* pAllocator,
-                VkDebugUtilsMessengerEXT* pDebugMessenger);
-            static void destroyDebugUtilsMessengerEXT(
-                VkInstance instance,
-                VkDebugUtilsMessengerEXT debugMessenger,
-                const VkAllocationCallbacks* pAllocator);
 
-            VkDebugUtilsMessengerEXT m_debugMessenger;
-
-            const std::vector<const char*> m_validationLayers = {"VK_LAYER_KHRONOS_validation"};
+            vk::DebugUtilsMessengerEXT m_vkDebugMessenger{nullptr};
+            vk::DispatchLoaderDynamic m_vkDldi;
 #ifdef NDEBUG
             const bool m_enableValidationLayers = false;
 #else

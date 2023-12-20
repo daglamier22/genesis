@@ -216,10 +216,10 @@ namespace Genesis {
         vkDestroyDevice(m_vkDevice, nullptr);
 
         if (m_enableValidationLayers) {
-            VulkanRenderer::destroyDebugUtilsMessengerEXT(m_vkInstance, m_debugMessenger, nullptr);
+            m_vkInstance.destroyDebugUtilsMessengerEXT(m_vkDebugMessenger, nullptr, m_vkDldi);
         }
         vkDestroySurfaceKHR(m_vkInstance, m_vkSurface, nullptr);
-        vkDestroyInstance(m_vkInstance, nullptr);
+        m_vkInstance.destroy();
     }
 
     void VulkanRenderer::cleanupSwapChain() {
@@ -247,76 +247,81 @@ namespace Genesis {
     }
 
     bool VulkanRenderer::createInstance() {
-        if (m_enableValidationLayers && !checkValidationLayerSupport()) {
-            GN_CORE_ERROR("Validation layers requested, but not available.");
+        std::shared_ptr<GLFWWindow> window = std::dynamic_pointer_cast<GLFWWindow>(m_window);
+        vk::ApplicationInfo appInfo(window->getWindowTitle().c_str(),
+                                    VK_MAKE_VERSION(1, 0, 0),
+                                    "Genesis",
+                                    VK_MAKE_VERSION(1, 0, 0),
+                                    VK_API_VERSION_1_0);
+
+        // confirm required extension support
+        std::vector<const char*> extensions = getRequiredExtensions();
+        if (!checkInstanceExtensionSupport(extensions)) {
+            GN_CORE_ERROR("Instance extensions requested, but not available.");
             return false;
         }
-
-        std::shared_ptr<GLFWWindow> window = std::dynamic_pointer_cast<GLFWWindow>(m_window);
-        VkApplicationInfo appInfo{};
-        appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-        appInfo.pApplicationName = window->getWindowTitle().c_str();
-        appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
-        appInfo.pEngineName = "Genesis";
-        appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
-        appInfo.apiVersion = VK_API_VERSION_1_0;
-
-        VkInstanceCreateInfo createInfo{};
-        createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-        createInfo.pApplicationInfo = &appInfo;
-
-        std::vector<const char*> extensions = getRequiredExtensions();
 #if defined(GN_PLATFORM_MACOS)
         extensions.emplace_back(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
         createInfo.flags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
 #endif
-        createInfo.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
-        createInfo.ppEnabledExtensionNames = extensions.data();
 
+        // confirm required validation layer support
         VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo{};
+        std::vector<const char*> validationLayers;
         if (m_enableValidationLayers) {
-            createInfo.enabledLayerCount = static_cast<uint32_t>(m_validationLayers.size());
-            createInfo.ppEnabledLayerNames = m_validationLayers.data();
-
-            populateDebugMessengerCreateInfo(debugCreateInfo);
-            createInfo.pNext = (VkDebugUtilsMessengerCreateInfoEXT*)&debugCreateInfo;
-        } else {
-            createInfo.enabledLayerCount = 0;
-
-            createInfo.pNext = nullptr;
+            validationLayers.push_back("VK_LAYER_KHRONOS_validation");
         }
-
-        if (vkCreateInstance(&createInfo, nullptr, &m_vkInstance) != VK_SUCCESS) {
-            GN_CORE_ERROR("Unable to create Vulkan instance.");
+        if (m_enableValidationLayers && !checkValidationLayerSupport(validationLayers)) {
+            GN_CORE_ERROR("Validation layers requested, but not available.");
             return false;
         }
+
+        vk::InstanceCreateInfo createInfo(vk::InstanceCreateFlags(),
+                                          &appInfo,
+                                          static_cast<uint32_t>(validationLayers.size()),
+                                          validationLayers.data(),
+                                          static_cast<uint32_t>(extensions.size()),
+                                          extensions.data());
+
+        try {
+            m_vkInstance = vk::createInstance(createInfo);
+        } catch (vk::SystemError err) {
+            GN_CORE_ERROR("Unable to create Vulkan instance: {}", err.what());
+            return false;
+        }
+
         GN_CORE_INFO("Vulkan instance created successfully.");
         return true;
     }
 
-    bool VulkanRenderer::checkValidationLayerSupport() {
-        uint32_t layerCount;
-        vkEnumerateInstanceLayerProperties(&layerCount, nullptr);
+    bool VulkanRenderer::checkInstanceExtensionSupport(std::vector<const char*>& extensions) {
+        std::vector<vk::ExtensionProperties> availableExtensions = vk::enumerateInstanceExtensionProperties();
+        std::set<std::string> requiredExtensions(extensions.begin(), extensions.end());
 
-        std::vector<VkLayerProperties> availableLayers(layerCount);
-        vkEnumerateInstanceLayerProperties(&layerCount, availableLayers.data());
-
-        for (const char* layerName : m_validationLayers) {
-            bool layerFound = false;
-
-            for (const auto& layerProperties : availableLayers) {
-                if (strcmp(layerName, layerProperties.layerName) == 0) {
-                    GN_CORE_TRACE("Vulkan validation layer found.");
-                    layerFound = true;
-                    break;
-                }
-            }
-
-            if (!layerFound) {
-                return false;
-            }
+        GN_CORE_TRACE("Available Vulkan instance extensions:");
+        for (vk::ExtensionProperties availableExtension : availableExtensions) {
+            GN_CORE_TRACE("\t{}", availableExtension.extensionName.data());
+            requiredExtensions.erase(availableExtension.extensionName);
         }
-        return true;
+        if (requiredExtensions.empty()) {
+            GN_CORE_TRACE("Vulkan instance extensions found.");
+        }
+        return requiredExtensions.empty();
+    }
+
+    bool VulkanRenderer::checkValidationLayerSupport(std::vector<const char*>& layers) {
+        std::vector<vk::LayerProperties> availableLayers = vk::enumerateInstanceLayerProperties();
+        std::set<std::string> requiredLayers(layers.begin(), layers.end());
+
+        GN_CORE_TRACE("Available Vulkan instance layers:");
+        for (vk::LayerProperties availableLayer : availableLayers) {
+            GN_CORE_TRACE("\t{}", availableLayer.layerName.data());
+            requiredLayers.erase(availableLayer.layerName);
+        }
+        if (requiredLayers.empty()) {
+            GN_CORE_TRACE("Vulkan instance layers found.");
+        }
+        return requiredLayers.empty();
     }
 
     std::vector<const char*> VulkanRenderer::getRequiredExtensions() {
@@ -1889,47 +1894,28 @@ namespace Genesis {
         return VK_FALSE;
     }
 
-    VkResult VulkanRenderer::createDebugUtilsMessengerEXT(VkInstance instance,
-                                                          const VkDebugUtilsMessengerCreateInfoEXT* pCreateInfo,
-                                                          const VkAllocationCallbacks* pAllocator,
-                                                          VkDebugUtilsMessengerEXT* pDebugMessenger) {
-        auto func = (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT");
-        if (func != nullptr) {
-            return func(instance, pCreateInfo, pAllocator, pDebugMessenger);
-        } else {
-            return VK_ERROR_EXTENSION_NOT_PRESENT;
-        }
-    }
-
-    void VulkanRenderer::destroyDebugUtilsMessengerEXT(VkInstance instance, VkDebugUtilsMessengerEXT debugMessenger, const VkAllocationCallbacks* pAllocator) {
-        auto func = (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(instance, "vkDestroyDebugUtilsMessengerEXT");
-        if (func != nullptr) {
-            func(instance, debugMessenger, pAllocator);
-        }
-    }
-
     bool VulkanRenderer::setupDebugMessenger() {
         if (!m_enableValidationLayers) {
             return true;
         }
 
-        VkDebugUtilsMessengerCreateInfoEXT createInfo{};
-        populateDebugMessengerCreateInfo(createInfo);
+        m_vkDldi = vk::DispatchLoaderDynamic(m_vkInstance, vkGetInstanceProcAddr);
 
-        if (VulkanRenderer::createDebugUtilsMessengerEXT(m_vkInstance, &createInfo, nullptr, &m_debugMessenger) != VK_SUCCESS) {
-            GN_CORE_ERROR("Failed to setup debug messenger.");
+        vk::DebugUtilsMessengerCreateInfoEXT createInfo = vk::DebugUtilsMessengerCreateInfoEXT(
+            vk::DebugUtilsMessengerCreateFlagsEXT(),
+            vk::DebugUtilsMessageSeverityFlagBitsEXT::eVerbose | vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning | vk::DebugUtilsMessageSeverityFlagBitsEXT::eError,
+            vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral | vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation | vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance,
+            VulkanRenderer::debugCallback,
+            nullptr);
+
+        try {
+            m_vkDebugMessenger = m_vkInstance.createDebugUtilsMessengerEXT(createInfo, nullptr, m_vkDldi);
+        } catch (vk::SystemError err) {
+            GN_CORE_ERROR("Failed to setup debug messenger: {}", err.what());
             return false;
         }
 
         GN_CORE_INFO("Vulkan debug messenger setup successfully.");
         return true;
-    }
-
-    void VulkanRenderer::populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo) {
-        createInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
-        createInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
-        createInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
-        createInfo.pfnUserCallback = VulkanRenderer::debugCallback;
-        createInfo.pUserData = nullptr;
     }
 }  // namespace Genesis
