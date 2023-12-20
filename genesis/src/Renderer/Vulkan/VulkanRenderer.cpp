@@ -30,12 +30,8 @@ namespace Genesis {
     }
 
     void VulkanRenderer::init() {
-        if (!createInstance()) {
-            return;
-        }
-        if (!setupDebugMessenger()) {
-            return;
-        }
+        createInstance();
+        setupDebugMessenger();
         if (!createSurface()) {
             return;
         }
@@ -246,7 +242,7 @@ namespace Genesis {
         vkDeviceWaitIdle(m_vkDevice);
     }
 
-    bool VulkanRenderer::createInstance() {
+    void VulkanRenderer::createInstance() {
         std::shared_ptr<GLFWWindow> window = std::dynamic_pointer_cast<GLFWWindow>(m_window);
         vk::ApplicationInfo appInfo(window->getWindowTitle().c_str(),
                                     VK_MAKE_VERSION(1, 0, 0),
@@ -257,8 +253,9 @@ namespace Genesis {
         // confirm required extension support
         std::vector<const char*> extensions = getRequiredExtensions();
         if (!checkInstanceExtensionSupport(extensions)) {
-            GN_CORE_ERROR("Instance extensions requested, but not available.");
-            return false;
+            const std::string errMsg = "Instance extensions requested, but not available.";
+            GN_CORE_ERROR("{}", errMsg);
+            throw std::runtime_error(errMsg);
         }
 #if defined(GN_PLATFORM_MACOS)
         extensions.emplace_back(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
@@ -272,8 +269,9 @@ namespace Genesis {
             validationLayers.push_back("VK_LAYER_KHRONOS_validation");
         }
         if (m_enableValidationLayers && !checkValidationLayerSupport(validationLayers)) {
-            GN_CORE_ERROR("Validation layers requested, but not available.");
-            return false;
+            const std::string errMsg = "Validation layers requested, but not available.";
+            GN_CORE_ERROR("{}", errMsg);
+            throw std::runtime_error(errMsg);
         }
 
         vk::InstanceCreateInfo createInfo(vk::InstanceCreateFlags(),
@@ -286,12 +284,12 @@ namespace Genesis {
         try {
             m_vkInstance = vk::createInstance(createInfo);
         } catch (vk::SystemError err) {
-            GN_CORE_ERROR("Unable to create Vulkan instance: {}", err.what());
-            return false;
+            const std::string errMsg = "Unable to create Vulkan instance: ";
+            GN_CORE_ERROR("{}{}", errMsg, err.what());
+            throw std::runtime_error(errMsg + err.what());
         }
 
         GN_CORE_INFO("Vulkan instance created successfully.");
-        return true;
     }
 
     bool VulkanRenderer::checkInstanceExtensionSupport(std::vector<const char*>& extensions) {
@@ -1894,9 +1892,9 @@ namespace Genesis {
         return VK_FALSE;
     }
 
-    bool VulkanRenderer::setupDebugMessenger() {
+    void VulkanRenderer::setupDebugMessenger() {
         if (!m_enableValidationLayers) {
-            return true;
+            return;
         }
 
         m_vkDldi = vk::DispatchLoaderDynamic(m_vkInstance, vkGetInstanceProcAddr);
@@ -1911,11 +1909,11 @@ namespace Genesis {
         try {
             m_vkDebugMessenger = m_vkInstance.createDebugUtilsMessengerEXT(createInfo, nullptr, m_vkDldi);
         } catch (vk::SystemError err) {
-            GN_CORE_ERROR("Failed to setup debug messenger: {}", err.what());
-            return false;
+            std::string errMsg = "Failed to setup debug messenger: ";
+            GN_CORE_ERROR("{}{}", errMsg, err.what());
+            throw std::runtime_error(errMsg + err.what());
         }
 
         GN_CORE_INFO("Vulkan debug messenger setup successfully.");
-        return true;
     }
 }  // namespace Genesis

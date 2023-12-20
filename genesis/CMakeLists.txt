@@ -43,6 +43,7 @@ target_precompile_headers(genesis
         <memory>
         <set>
         <optional>
+        <stdexcept>
         <quill/Quill.h>
         <vulkan/vulkan.h>
 )

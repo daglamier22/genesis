@@ -96,6 +96,9 @@ namespace Genesis {
             VulkanRenderer(std::shared_ptr<Window> window);
             ~VulkanRenderer();
 
+            VulkanRenderer(const VulkanRenderer&) = delete;
+            VulkanRenderer& operator=(const VulkanRenderer&) = delete;
+
             void init();
             bool drawFrame();
             void shutdown();
@@ -105,7 +108,7 @@ namespace Genesis {
         private:
             void onResizeEvent(Event& e);
 
-            bool createInstance();
+            void createInstance();
             bool checkInstanceExtensionSupport(std::vector<const char*>& extensions);
             bool checkValidationLayerSupport(std::vector<const char*>& layers);
             std::vector<const char*> getRequiredExtensions();
@@ -251,7 +254,7 @@ namespace Genesis {
             uint32_t m_currentFrame = 0;
             bool m_framebufferResized = false;
 
-            bool setupDebugMessenger();
+            void setupDebugMessenger();
             static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
                 VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
                 VkDebugUtilsMessageTypeFlagsEXT messageType,
