@@ -377,9 +377,9 @@ namespace Genesis {
         GN_CORE_TRACE("\tDevice selected: {}", m_vkPhysicalDeviceProperties.deviceName);
         GN_CORE_TRACE("\tDevice type: {}", deviceType);
         GN_CORE_TRACE("\tAPI version: {}.{}.{}",
-                      VK_VERSION_MAJOR(m_vkPhysicalDeviceProperties.apiVersion),
-                      VK_VERSION_MINOR(m_vkPhysicalDeviceProperties.apiVersion),
-                      VK_VERSION_PATCH(m_vkPhysicalDeviceProperties.apiVersion));
+                      VK_API_VERSION_MAJOR(m_vkPhysicalDeviceProperties.apiVersion),
+                      VK_API_VERSION_MINOR(m_vkPhysicalDeviceProperties.apiVersion),
+                      VK_API_VERSION_PATCH(m_vkPhysicalDeviceProperties.apiVersion));
         return true;
     }
 
