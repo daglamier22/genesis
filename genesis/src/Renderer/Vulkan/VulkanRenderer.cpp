@@ -32,9 +32,7 @@ namespace Genesis {
     void VulkanRenderer::init() {
         createInstance();
         setupDebugMessenger();
-        if (!createSurface()) {
-            return;
-        }
+        createSurface();
         m_vulkanDevice.pickPhysicalDevice(m_vkInstance, m_vkSurface);
         m_vulkanDevice.createLogicalDevice(m_vkSurface);
         if (!createSwapChain()) {
@@ -210,7 +208,7 @@ namespace Genesis {
         if (m_enableValidationLayers) {
             m_vkInstance.destroyDebugUtilsMessengerEXT(m_vkDebugMessenger, nullptr, m_vkDldi);
         }
-        vkDestroySurfaceKHR(m_vkInstance, m_vkSurface, nullptr);
+        m_vkInstance.destroySurfaceKHR(m_vkSurface);
         m_vkInstance.destroy();
     }
 
@@ -334,12 +332,18 @@ namespace Genesis {
         return extensions;
     }
 
-    bool VulkanRenderer::createSurface() {
+    void VulkanRenderer::createSurface() {
         std::shared_ptr<GLFWWindow> window = std::dynamic_pointer_cast<GLFWWindow>(m_window);
-        if (!window->createVulkanSurface(m_vkInstance, &m_vkSurface)) {
-            GN_CORE_ERROR("Failed to create window surface.");
-            return false;
+        // create a temp C style surface to retrieve from GLFW
+        VkSurfaceKHR cStyleSurface;
+        if (!window->createVulkanSurface(m_vkInstance, &cStyleSurface)) {
+            std::string errMsg = "Failed to create window surface.";
+            GN_CORE_ERROR("{}", errMsg);
+            throw std::runtime_error(errMsg);
         }
+
+        // then convert to the HPP style surface
+        m_vkSurface = cStyleSurface;
 
         GN_CORE_INFO("Vulkan surface created successfully.");
         return true;

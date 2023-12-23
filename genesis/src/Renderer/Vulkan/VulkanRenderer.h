@@ -91,7 +91,7 @@ namespace Genesis {
             bool checkValidationLayerSupport(std::vector<const char*>& layers);
             std::vector<const char*> getRequiredExtensions();
 
-            bool createSurface();
+            void createSurface();
             bool createSwapChain();
             bool createImageViews();
             bool createFramebuffers();
@@ -164,10 +164,10 @@ namespace Genesis {
             uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
 
             vk::Instance m_vkInstance{nullptr};
+            vk::SurfaceKHR m_vkSurface;
 
             VulkanDevice m_vulkanDevice;
 
-            VkSurfaceKHR m_vkSurface;
             VkSwapchainKHR m_vkSwapchain;
             std::vector<VkImage> m_vkSwapchainImages;
             std::vector<VkImageView> m_vkSwapchainImageViews;
