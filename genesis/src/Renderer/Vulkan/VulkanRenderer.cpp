@@ -35,12 +35,8 @@ namespace Genesis {
         if (!createSurface()) {
             return;
         }
-        if (!pickPhysicalDevice()) {
-            return;
-        }
-        if (!createLogicalDevice()) {
-            return;
-        }
+        m_vulkanDevice.pickPhysicalDevice(m_vkInstance, m_vkSurface);
+        m_vulkanDevice.createLogicalDevice(m_vkSurface);
         if (!createSwapChain()) {
             return;
         }
@@ -105,10 +101,10 @@ namespace Genesis {
     }
 
     bool VulkanRenderer::drawFrame() {
-        vkWaitForFences(m_vkDevice, 1, &m_vkInFlightFences[m_currentFrame], VK_TRUE, UINT64_MAX);
+        vkWaitForFences(m_vulkanDevice.logicalDevice(), 1, &m_vkInFlightFences[m_currentFrame], VK_TRUE, UINT64_MAX);
 
         uint32_t imageIndex;
-        VkResult result = vkAcquireNextImageKHR(m_vkDevice, m_vkSwapchain, UINT64_MAX, m_vkImageAvailableSemaphores[m_currentFrame], VK_NULL_HANDLE, &imageIndex);
+        VkResult result = vkAcquireNextImageKHR(m_vulkanDevice.logicalDevice(), m_vkSwapchain, UINT64_MAX, m_vkImageAvailableSemaphores[m_currentFrame], VK_NULL_HANDLE, &imageIndex);
         if (result == VK_ERROR_OUT_OF_DATE_KHR) {
             recreateSwapChain();
             return true;
@@ -120,7 +116,7 @@ namespace Genesis {
         updateUniformBuffer(m_currentFrame);
 
         // Only reset the fence if we are submitting work
-        vkResetFences(m_vkDevice, 1, &m_vkInFlightFences[m_currentFrame]);
+        vkResetFences(m_vulkanDevice.logicalDevice(), 1, &m_vkInFlightFences[m_currentFrame]);
 
         vkResetCommandBuffer(m_vkCommandBuffers[m_currentFrame], 0);
         recordCommandBuffer(m_vkCommandBuffers[m_currentFrame], imageIndex);
@@ -141,7 +137,7 @@ namespace Genesis {
         submitInfo.signalSemaphoreCount = 1;
         submitInfo.pSignalSemaphores = signalSemaphores;
 
-        if (vkQueueSubmit(m_vkGraphicsQueue, 1, &submitInfo, m_vkInFlightFences[m_currentFrame]) != VK_SUCCESS) {
+        if (vkQueueSubmit(m_vulkanDevice.graphicsQueue(), 1, &submitInfo, m_vkInFlightFences[m_currentFrame]) != VK_SUCCESS) {
             GN_CORE_ERROR("Failed to submit draw command buffer.");
             return false;
         }
@@ -159,7 +155,7 @@ namespace Genesis {
 
         presentInfo.pResults = nullptr;  // Optional
 
-        result = vkQueuePresentKHR(m_vkPresentQueue, &presentInfo);
+        result = vkQueuePresentKHR(m_vulkanDevice.presentQueue(), &presentInfo);
         if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || m_framebufferResized) {
             m_framebufferResized = false;
             recreateSwapChain();
@@ -178,38 +174,38 @@ namespace Genesis {
         cleanupSwapChain();
 
         for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-            vkDestroySemaphore(m_vkDevice, m_vkImageAvailableSemaphores[i], nullptr);
-            vkDestroySemaphore(m_vkDevice, m_vkRenderFinishedSemaphores[i], nullptr);
-            vkDestroyFence(m_vkDevice, m_vkInFlightFences[i], nullptr);
+            vkDestroySemaphore(m_vulkanDevice.logicalDevice(), m_vkImageAvailableSemaphores[i], nullptr);
+            vkDestroySemaphore(m_vulkanDevice.logicalDevice(), m_vkRenderFinishedSemaphores[i], nullptr);
+            vkDestroyFence(m_vulkanDevice.logicalDevice(), m_vkInFlightFences[i], nullptr);
         }
 
         for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-            vkDestroyBuffer(m_vkDevice, m_vkUniformBuffers[i], nullptr);
-            vkFreeMemory(m_vkDevice, m_vkUniformBuffersMemory[i], nullptr);
+            vkDestroyBuffer(m_vulkanDevice.logicalDevice(), m_vkUniformBuffers[i], nullptr);
+            vkFreeMemory(m_vulkanDevice.logicalDevice(), m_vkUniformBuffersMemory[i], nullptr);
         }
 
-        vkDestroyDescriptorPool(m_vkDevice, m_vkDescriptorPool, nullptr);
+        vkDestroyDescriptorPool(m_vulkanDevice.logicalDevice(), m_vkDescriptorPool, nullptr);
 
-        vkDestroySampler(m_vkDevice, m_vkTextureSampler, nullptr);
-        vkDestroyImageView(m_vkDevice, m_vkTextureImageView, nullptr);
-        vkDestroyImage(m_vkDevice, m_vkTextureImage, nullptr);
-        vkFreeMemory(m_vkDevice, m_vkTextureImageMemory, nullptr);
+        vkDestroySampler(m_vulkanDevice.logicalDevice(), m_vkTextureSampler, nullptr);
+        vkDestroyImageView(m_vulkanDevice.logicalDevice(), m_vkTextureImageView, nullptr);
+        vkDestroyImage(m_vulkanDevice.logicalDevice(), m_vkTextureImage, nullptr);
+        vkFreeMemory(m_vulkanDevice.logicalDevice(), m_vkTextureImageMemory, nullptr);
 
-        vkDestroyDescriptorSetLayout(m_vkDevice, m_vkDescriptorSetLayout, nullptr);
+        vkDestroyDescriptorSetLayout(m_vulkanDevice.logicalDevice(), m_vkDescriptorSetLayout, nullptr);
 
-        vkDestroyBuffer(m_vkDevice, m_vkIndexBuffer, nullptr);
-        vkFreeMemory(m_vkDevice, m_vkIndexBufferMemory, nullptr);
+        vkDestroyBuffer(m_vulkanDevice.logicalDevice(), m_vkIndexBuffer, nullptr);
+        vkFreeMemory(m_vulkanDevice.logicalDevice(), m_vkIndexBufferMemory, nullptr);
 
-        vkDestroyBuffer(m_vkDevice, m_vkVertexBuffer, nullptr);
-        vkFreeMemory(m_vkDevice, m_vkVertexBufferMemory, nullptr);
+        vkDestroyBuffer(m_vulkanDevice.logicalDevice(), m_vkVertexBuffer, nullptr);
+        vkFreeMemory(m_vulkanDevice.logicalDevice(), m_vkVertexBufferMemory, nullptr);
 
-        vkDestroyCommandPool(m_vkDevice, m_vkCommandPool, nullptr);
+        vkDestroyCommandPool(m_vulkanDevice.logicalDevice(), m_vkCommandPool, nullptr);
 
-        vkDestroyPipeline(m_vkDevice, m_vkGraphicsPipeline, nullptr);
-        vkDestroyPipelineLayout(m_vkDevice, m_vkPipelineLayout, nullptr);
-        vkDestroyRenderPass(m_vkDevice, m_vkRenderPass, nullptr);
+        vkDestroyPipeline(m_vulkanDevice.logicalDevice(), m_vkGraphicsPipeline, nullptr);
+        vkDestroyPipelineLayout(m_vulkanDevice.logicalDevice(), m_vkPipelineLayout, nullptr);
+        vkDestroyRenderPass(m_vulkanDevice.logicalDevice(), m_vkRenderPass, nullptr);
 
-        vkDestroyDevice(m_vkDevice, nullptr);
+        m_vulkanDevice.logicalDevice().destroy();
 
         if (m_enableValidationLayers) {
             m_vkInstance.destroyDebugUtilsMessengerEXT(m_vkDebugMessenger, nullptr, m_vkDldi);
@@ -219,27 +215,27 @@ namespace Genesis {
     }
 
     void VulkanRenderer::cleanupSwapChain() {
-        vkDestroyImageView(m_vkDevice, m_vkDepthImageView, nullptr);
-        vkDestroyImage(m_vkDevice, m_vkDepthImage, nullptr);
-        vkFreeMemory(m_vkDevice, m_vkDepthImageMemory, nullptr);
+        vkDestroyImageView(m_vulkanDevice.logicalDevice(), m_vkDepthImageView, nullptr);
+        vkDestroyImage(m_vulkanDevice.logicalDevice(), m_vkDepthImage, nullptr);
+        vkFreeMemory(m_vulkanDevice.logicalDevice(), m_vkDepthImageMemory, nullptr);
 
-        vkDestroyImageView(m_vkDevice, m_vkColorImageView, nullptr);
-        vkDestroyImage(m_vkDevice, m_vkColorImage, nullptr);
-        vkFreeMemory(m_vkDevice, m_vkColorImageMemory, nullptr);
+        vkDestroyImageView(m_vulkanDevice.logicalDevice(), m_vkColorImageView, nullptr);
+        vkDestroyImage(m_vulkanDevice.logicalDevice(), m_vkColorImage, nullptr);
+        vkFreeMemory(m_vulkanDevice.logicalDevice(), m_vkColorImageMemory, nullptr);
 
         for (auto framebuffer : m_vkSwapchainFramebuffers) {
-            vkDestroyFramebuffer(m_vkDevice, framebuffer, nullptr);
+            vkDestroyFramebuffer(m_vulkanDevice.logicalDevice(), framebuffer, nullptr);
         }
 
         for (auto imageView : m_vkSwapchainImageViews) {
-            vkDestroyImageView(m_vkDevice, imageView, nullptr);
+            vkDestroyImageView(m_vulkanDevice.logicalDevice(), imageView, nullptr);
         }
 
-        vkDestroySwapchainKHR(m_vkDevice, m_vkSwapchain, nullptr);
+        vkDestroySwapchainKHR(m_vulkanDevice.logicalDevice(), m_vkSwapchain, nullptr);
     }
 
     void VulkanRenderer::waitForIdle() {
-        vkDeviceWaitIdle(m_vkDevice);
+        vkDeviceWaitIdle(m_vulkanDevice.logicalDevice());
     }
 
     void VulkanRenderer::createInstance() {
@@ -338,187 +334,6 @@ namespace Genesis {
         return extensions;
     }
 
-    bool VulkanRenderer::pickPhysicalDevice() {
-        uint32_t deviceCount = 0;
-        vkEnumeratePhysicalDevices(m_vkInstance, &deviceCount, nullptr);
-        if (deviceCount == 0) {
-            GN_CORE_ERROR("Failed to find GPUs with Vulkan support.");
-            return false;
-        }
-        GN_CORE_TRACE("Discovered {} devices with Vulkan support.", deviceCount);
-
-        std::vector<VkPhysicalDevice> devices(deviceCount);
-        vkEnumeratePhysicalDevices(m_vkInstance, &deviceCount, devices.data());
-        for (const auto& device : devices) {
-            if (isDeviceSuitable(device)) {
-                m_vkPhysicalDevice = device;
-                m_vkMsaaSamples = getMaxUsableSampleCount();
-                break;
-            }
-        }
-
-        if (m_vkPhysicalDevice == VK_NULL_HANDLE) {
-            GN_CORE_ERROR("Failed to find a suitable GPU.");
-            return false;
-        }
-
-        std::string deviceType;
-        switch (m_vkPhysicalDeviceProperties.deviceType) {
-            default:
-            case VK_PHYSICAL_DEVICE_TYPE_OTHER:
-                deviceType = "Unknown";
-                break;
-            case VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU:
-                deviceType = "Integrated";
-            case VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU:
-                deviceType = "Discrete";
-            case VK_PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU:
-                deviceType = "Virtual";
-            case VK_PHYSICAL_DEVICE_TYPE_CPU:
-                deviceType = "CPU";
-        }
-
-        GN_CORE_INFO("Vulkan physical device selected.");
-        GN_CORE_TRACE("\tDevice selected: {}", m_vkPhysicalDeviceProperties.deviceName);
-        GN_CORE_TRACE("\tDevice type: {}", deviceType);
-        GN_CORE_TRACE("\tAPI version: {}.{}.{}",
-                      VK_API_VERSION_MAJOR(m_vkPhysicalDeviceProperties.apiVersion),
-                      VK_API_VERSION_MINOR(m_vkPhysicalDeviceProperties.apiVersion),
-                      VK_API_VERSION_PATCH(m_vkPhysicalDeviceProperties.apiVersion));
-        return true;
-    }
-
-    bool VulkanRenderer::isDeviceSuitable(VkPhysicalDevice device) {
-        QueueFamilyIndices indices = findQueueFamilies(device);
-
-        bool extensionSupported = checkDeviceExtensionSupport(device);
-
-        bool swapChainAdequate = false;
-        if (extensionSupported) {
-            SwapChainSupportDetails swapChainSupport = querySwapChainSupport(device);
-            swapChainAdequate = !swapChainSupport.formats.empty() && !swapChainSupport.presentModes.empty();
-        }
-
-        VkPhysicalDeviceFeatures supportedFeatures;
-        vkGetPhysicalDeviceFeatures(device, &supportedFeatures);
-
-        return indices.isComplete() && extensionSupported && swapChainAdequate && supportedFeatures.samplerAnisotropy;
-    }
-
-    bool VulkanRenderer::checkDeviceExtensionSupport(VkPhysicalDevice device) {
-        uint32_t extensionCount;
-        vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, nullptr);
-
-        std::vector<VkExtensionProperties> availableExtensions(extensionCount);
-        vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, availableExtensions.data());
-
-        std::set<std::string> requiredExtensions(m_deviceExtensions.begin(), m_deviceExtensions.end());
-
-        GN_CORE_TRACE("Available Vulkan extensions:");
-        for (const auto& extension : availableExtensions) {
-            GN_CORE_TRACE("\t{}", extension.extensionName);
-            requiredExtensions.erase(extension.extensionName);
-        }
-
-        return requiredExtensions.empty();
-    }
-
-    SwapChainSupportDetails VulkanRenderer::querySwapChainSupport(VkPhysicalDevice device) {
-        SwapChainSupportDetails details;
-
-        vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, m_vkSurface, &details.capabilities);
-
-        uint32_t formatCount;
-        vkGetPhysicalDeviceSurfaceFormatsKHR(device, m_vkSurface, &formatCount, nullptr);
-        if (formatCount != 0) {
-            details.formats.resize(formatCount);
-            vkGetPhysicalDeviceSurfaceFormatsKHR(device, m_vkSurface, &formatCount, details.formats.data());
-        }
-
-        uint32_t presentModeCount;
-        vkGetPhysicalDeviceSurfacePresentModesKHR(device, m_vkSurface, &presentModeCount, nullptr);
-        if (presentModeCount != 0) {
-            details.presentModes.resize(presentModeCount);
-            vkGetPhysicalDeviceSurfacePresentModesKHR(device, m_vkSurface, &presentModeCount, details.presentModes.data());
-        }
-
-        return details;
-    }
-
-    QueueFamilyIndices VulkanRenderer::findQueueFamilies(VkPhysicalDevice device) {
-        QueueFamilyIndices indices;
-
-        uint32_t queueFamilyCount = 0;
-        vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, nullptr);
-
-        std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
-        vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, queueFamilies.data());
-
-        int i = 0;
-        for (const auto& queueFamily : queueFamilies) {
-            if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT) {
-                indices.graphicsFamily = i;
-            }
-
-            VkBool32 presentSupport = false;
-            vkGetPhysicalDeviceSurfaceSupportKHR(device, i, m_vkSurface, &presentSupport);
-            if (presentSupport) {
-                indices.presentFamily = i;
-            }
-
-            if (indices.isComplete()) {
-                break;
-            }
-
-            i++;
-        }
-
-        return indices;
-    }
-
-    bool VulkanRenderer::createLogicalDevice() {
-        QueueFamilyIndices indices = findQueueFamilies(m_vkPhysicalDevice);
-
-        std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
-        std::set<uint32_t> uniqueQueueFamilies = {
-            indices.graphicsFamily.value(),
-            indices.presentFamily.value()};
-
-        float queuePriority = 1.0f;
-        for (uint32_t queueFamily : uniqueQueueFamilies) {
-            VkDeviceQueueCreateInfo queueCreateInfo{};
-            queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-            queueCreateInfo.queueFamilyIndex = queueFamily;
-            queueCreateInfo.queueCount = 1;
-            queueCreateInfo.pQueuePriorities = &queuePriority;
-            queueCreateInfos.push_back(queueCreateInfo);
-        }
-
-        VkPhysicalDeviceFeatures deviceFeatures{};
-        deviceFeatures.samplerAnisotropy = VK_TRUE;
-        deviceFeatures.sampleRateShading = VK_TRUE;  // NOTE: expensive! enable sample shading feature for the device
-
-        VkDeviceCreateInfo createInfo{};
-        createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-        createInfo.pQueueCreateInfos = queueCreateInfos.data();
-        createInfo.queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size());
-        createInfo.pEnabledFeatures = &deviceFeatures;
-
-        createInfo.enabledExtensionCount = static_cast<uint32_t>(m_deviceExtensions.size());
-        createInfo.ppEnabledExtensionNames = m_deviceExtensions.data();
-
-        if (vkCreateDevice(m_vkPhysicalDevice, &createInfo, nullptr, &m_vkDevice) != VK_SUCCESS) {
-            GN_CORE_ERROR("Failed to create logical device.");
-            return false;
-        }
-
-        vkGetDeviceQueue(m_vkDevice, indices.graphicsFamily.value(), 0, &m_vkGraphicsQueue);
-        vkGetDeviceQueue(m_vkDevice, indices.presentFamily.value(), 0, &m_vkPresentQueue);
-
-        GN_CORE_INFO("Vulkan logical device created.");
-        return true;
-    }
-
     bool VulkanRenderer::createSurface() {
         std::shared_ptr<GLFWWindow> window = std::dynamic_pointer_cast<GLFWWindow>(m_window);
         if (!window->createVulkanSurface(m_vkInstance, &m_vkSurface)) {
@@ -531,10 +346,10 @@ namespace Genesis {
     }
 
     bool VulkanRenderer::createSwapChain() {
-        SwapChainSupportDetails swapChainSupport = querySwapChainSupport(m_vkPhysicalDevice);
+        SwapChainSupportDetails swapChainSupport = m_vulkanDevice.querySwapChainSupport(m_vulkanDevice.physicalDevice(), m_vkSurface);
 
         VkSurfaceFormatKHR surfaceFormat = chooseSwapSurfaceFormat(swapChainSupport.formats);
-        VkPresentModeKHR presentMode = chooseSwapPresentMode(swapChainSupport.presentModes);
+        vk::PresentModeKHR presentMode = chooseSwapPresentMode(swapChainSupport.presentModes);
         VkExtent2D extent = chooseSwapExtent(swapChainSupport.capabilities);
 
         uint32_t imageCount = swapChainSupport.capabilities.minImageCount + 1;
@@ -553,7 +368,7 @@ namespace Genesis {
         createInfo.imageArrayLayers = 1;
         createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 
-        QueueFamilyIndices indices = findQueueFamilies(m_vkPhysicalDevice);
+        QueueFamilyIndices indices = m_vulkanDevice.findQueueFamilies(m_vulkanDevice.physicalDevice(), m_vkSurface);
         uint32_t queueFamilyIndices[] = {indices.graphicsFamily.value(), indices.presentFamily.value()};
 
         if (indices.graphicsFamily != indices.presentFamily) {
@@ -573,14 +388,14 @@ namespace Genesis {
 
         createInfo.oldSwapchain = VK_NULL_HANDLE;
 
-        if (vkCreateSwapchainKHR(m_vkDevice, &createInfo, nullptr, &m_vkSwapchain) != VK_SUCCESS) {
+        if (vkCreateSwapchainKHR(m_vulkanDevice.logicalDevice(), &createInfo, nullptr, &m_vkSwapchain) != VK_SUCCESS) {
             GN_CORE_ERROR("Failed to create swap chain.");
             return false;
         }
 
-        vkGetSwapchainImagesKHR(m_vkDevice, m_vkSwapchain, &imageCount, nullptr);
+        vkGetSwapchainImagesKHR(m_vulkanDevice.logicalDevice(), m_vkSwapchain, &imageCount, nullptr);
         m_vkSwapchainImages.resize(imageCount);
-        vkGetSwapchainImagesKHR(m_vkDevice, m_vkSwapchain, &imageCount, m_vkSwapchainImages.data());
+        vkGetSwapchainImagesKHR(m_vulkanDevice.logicalDevice(), m_vkSwapchain, &imageCount, m_vkSwapchainImages.data());
 
         m_vkSwapchainImageFormat = surfaceFormat.format;
         m_vkSwapchainExtent = extent;
@@ -617,7 +432,7 @@ namespace Genesis {
             framebufferInfo.height = m_vkSwapchainExtent.height;
             framebufferInfo.layers = 1;
 
-            if (vkCreateFramebuffer(m_vkDevice, &framebufferInfo, nullptr, &m_vkSwapchainFramebuffers[i]) != VK_SUCCESS) {
+            if (vkCreateFramebuffer(m_vulkanDevice.logicalDevice(), &framebufferInfo, nullptr, &m_vkSwapchainFramebuffers[i]) != VK_SUCCESS) {
                 GN_CORE_ERROR("Failed to create framebuffer.");
                 return false;
             }
@@ -627,9 +442,9 @@ namespace Genesis {
         return true;
     }
 
-    VkSurfaceFormatKHR VulkanRenderer::chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats) {
+    vk::SurfaceFormatKHR VulkanRenderer::chooseSwapSurfaceFormat(const std::vector<vk::SurfaceFormatKHR>& availableFormats) {
         for (const auto& availableFormat : availableFormats) {
-            if (availableFormat.format == VK_FORMAT_B8G8R8A8_SRGB && availableFormat.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) {
+            if (availableFormat.format == vk::Format::eB8G8R8A8Srgb && availableFormat.colorSpace == vk::ColorSpaceKHR::eSrgbNonlinear) {
                 return availableFormat;
             }
         }
@@ -637,14 +452,14 @@ namespace Genesis {
         return availableFormats[0];
     }
 
-    VkPresentModeKHR VulkanRenderer::chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes) {
+    vk::PresentModeKHR VulkanRenderer::chooseSwapPresentMode(const std::vector<vk::PresentModeKHR>& availablePresentModes) {
         for (const auto& availablePresentMode : availablePresentModes) {
-            if (availablePresentMode == VK_PRESENT_MODE_MAILBOX_KHR) {
+            if (availablePresentMode == vk::PresentModeKHR::eMailbox) {
                 return availablePresentMode;
             }
         }
 
-        return VK_PRESENT_MODE_FIFO_KHR;
+        return vk::PresentModeKHR::eFifo;
     }
 
     VkExtent2D VulkanRenderer::chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities) {
@@ -674,7 +489,7 @@ namespace Genesis {
             window->waitForWindowToBeRestored(&width, &height);
         }
 
-        vkDeviceWaitIdle(m_vkDevice);
+        vkDeviceWaitIdle(m_vulkanDevice.logicalDevice());
 
         cleanupSwapChain();
 
@@ -708,7 +523,7 @@ namespace Genesis {
         layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
         layoutInfo.pBindings = bindings.data();
 
-        if (vkCreateDescriptorSetLayout(m_vkDevice, &layoutInfo, nullptr, &m_vkDescriptorSetLayout) != VK_SUCCESS) {
+        if (vkCreateDescriptorSetLayout(m_vulkanDevice.logicalDevice(), &layoutInfo, nullptr, &m_vkDescriptorSetLayout) != VK_SUCCESS) {
             GN_CORE_ERROR("Failed to create descriptor set layout.");
             return false;
         }
@@ -792,7 +607,7 @@ namespace Genesis {
         multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
         multisampling.sampleShadingEnable = VK_TRUE;  // NOTE: expensive! enable sample shading in the pipeline
         multisampling.minSampleShading = .2f;         // NOTE: expensive! min fraction for sample shading; closer to one is smoother
-        multisampling.rasterizationSamples = m_vkMsaaSamples;
+        multisampling.rasterizationSamples = m_vulkanDevice.msaaSamples();
         multisampling.minSampleShading = 1.0f;           // Optional
         multisampling.pSampleMask = nullptr;             // Optional
         multisampling.alphaToCoverageEnable = VK_FALSE;  // Optional
@@ -846,7 +661,7 @@ namespace Genesis {
         pipelineLayoutInfo.pushConstantRangeCount = 0;     // Optional
         pipelineLayoutInfo.pPushConstantRanges = nullptr;  // Optional
 
-        if (vkCreatePipelineLayout(m_vkDevice, &pipelineLayoutInfo, nullptr, &m_vkPipelineLayout) != VK_SUCCESS) {
+        if (vkCreatePipelineLayout(m_vulkanDevice.logicalDevice(), &pipelineLayoutInfo, nullptr, &m_vkPipelineLayout) != VK_SUCCESS) {
             GN_CORE_ERROR("Failed to create pipeline layout.");
             return false;
         }
@@ -869,13 +684,13 @@ namespace Genesis {
         pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;  // Optional
         pipelineInfo.basePipelineIndex = -1;               // Optional
 
-        if (vkCreateGraphicsPipelines(m_vkDevice, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &m_vkGraphicsPipeline) != VK_SUCCESS) {
+        if (vkCreateGraphicsPipelines(m_vulkanDevice.logicalDevice(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &m_vkGraphicsPipeline) != VK_SUCCESS) {
             GN_CORE_ERROR("Failed to create graphics pipeline.");
             return false;
         }
 
-        vkDestroyShaderModule(m_vkDevice, vertShaderModule, nullptr);
-        vkDestroyShaderModule(m_vkDevice, fragShaderModule, nullptr);
+        vkDestroyShaderModule(m_vulkanDevice.logicalDevice(), vertShaderModule, nullptr);
+        vkDestroyShaderModule(m_vulkanDevice.logicalDevice(), fragShaderModule, nullptr);
 
         GN_CORE_INFO("Vulkan pipeline created successfully.");
         return true;
@@ -884,7 +699,7 @@ namespace Genesis {
     bool VulkanRenderer::createRenderPass() {
         VkAttachmentDescription colorAttachment{};
         colorAttachment.format = m_vkSwapchainImageFormat;
-        colorAttachment.samples = m_vkMsaaSamples;
+        colorAttachment.samples = m_vulkanDevice.msaaSamples();
         colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
         colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
         colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
@@ -894,7 +709,7 @@ namespace Genesis {
 
         VkAttachmentDescription depthAttachment{};
         depthAttachment.format = findDepthFormat();
-        depthAttachment.samples = m_vkMsaaSamples;
+        depthAttachment.samples = m_vulkanDevice.msaaSamples();
         depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
         depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
         depthAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
@@ -949,7 +764,7 @@ namespace Genesis {
         renderPassInfo.dependencyCount = 1;
         renderPassInfo.pDependencies = &dependency;
 
-        if (vkCreateRenderPass(m_vkDevice, &renderPassInfo, nullptr, &m_vkRenderPass) != VK_SUCCESS) {
+        if (vkCreateRenderPass(m_vulkanDevice.logicalDevice(), &renderPassInfo, nullptr, &m_vkRenderPass) != VK_SUCCESS) {
             GN_CORE_ERROR("Failed to create render pass.");
             return false;
         }
@@ -964,7 +779,7 @@ namespace Genesis {
         createInfo.codeSize = code.size();
         createInfo.pCode = reinterpret_cast<const uint32_t*>(code.data());
         VkShaderModule shaderModule;
-        if (vkCreateShaderModule(m_vkDevice, &createInfo, nullptr, &shaderModule) != VK_SUCCESS) {
+        if (vkCreateShaderModule(m_vulkanDevice.logicalDevice(), &createInfo, nullptr, &shaderModule) != VK_SUCCESS) {
             GN_CORE_ERROR("Failed to create shader module.");
         }
 
@@ -992,14 +807,14 @@ namespace Genesis {
     }
 
     bool VulkanRenderer::createCommandPool() {
-        QueueFamilyIndices queueFamilyIndices = findQueueFamilies(m_vkPhysicalDevice);
+        QueueFamilyIndices queueFamilyIndices = m_vulkanDevice.findQueueFamilies(m_vulkanDevice.physicalDevice(), m_vkSurface);
 
         VkCommandPoolCreateInfo poolInfo{};
         poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
         poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
         poolInfo.queueFamilyIndex = queueFamilyIndices.graphicsFamily.value();
 
-        if (vkCreateCommandPool(m_vkDevice, &poolInfo, nullptr, &m_vkCommandPool) != VK_SUCCESS) {
+        if (vkCreateCommandPool(m_vulkanDevice.logicalDevice(), &poolInfo, nullptr, &m_vkCommandPool) != VK_SUCCESS) {
             GN_CORE_ERROR("Failed to create command pool.");
             return false;
         }
@@ -1013,7 +828,7 @@ namespace Genesis {
         if (!createImage(m_vkSwapchainExtent.width,
                          m_vkSwapchainExtent.height,
                          1,
-                         m_vkMsaaSamples,
+                         m_vulkanDevice.msaaSamples(),
                          colorFormat,
                          VK_IMAGE_TILING_OPTIMAL,
                          VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
@@ -1050,9 +865,9 @@ namespace Genesis {
                      stagingBufferMemory);
 
         void* data;
-        vkMapMemory(m_vkDevice, stagingBufferMemory, 0, imageSize, 0, &data);
+        vkMapMemory(m_vulkanDevice.logicalDevice(), stagingBufferMemory, 0, imageSize, 0, &data);
         memcpy(data, pixels, static_cast<size_t>(imageSize));
-        vkUnmapMemory(m_vkDevice, stagingBufferMemory);
+        vkUnmapMemory(m_vulkanDevice.logicalDevice(), stagingBufferMemory);
 
         stbi_image_free(pixels);
 
@@ -1080,8 +895,8 @@ namespace Genesis {
         //                       VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
         //                       m_vkMipLevels);
 
-        vkDestroyBuffer(m_vkDevice, stagingBuffer, nullptr);
-        vkFreeMemory(m_vkDevice, stagingBufferMemory, nullptr);
+        vkDestroyBuffer(m_vulkanDevice.logicalDevice(), stagingBuffer, nullptr);
+        vkFreeMemory(m_vulkanDevice.logicalDevice(), stagingBufferMemory, nullptr);
 
         if (!generateMipmaps(m_vkTextureImage, VK_FORMAT_R8G8B8A8_SRGB, texWidth, texHeight, m_vkMipLevels)) {
             return false;
@@ -1094,7 +909,7 @@ namespace Genesis {
     bool VulkanRenderer::generateMipmaps(VkImage image, VkFormat imageFormat, int32_t texWidth, int32_t texHeight, uint32_t mipLevels) {
         // Check if image format supports linear blitting
         VkFormatProperties formatProperties;
-        vkGetPhysicalDeviceFormatProperties(m_vkPhysicalDevice, imageFormat, &formatProperties);
+        vkGetPhysicalDeviceFormatProperties(m_vulkanDevice.physicalDevice(), imageFormat, &formatProperties);
 
         if (!(formatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT)) {
             GN_CORE_ERROR("Texture image format does not support linear blitting.");
@@ -1192,31 +1007,6 @@ namespace Genesis {
         return true;
     }
 
-    VkSampleCountFlagBits VulkanRenderer::getMaxUsableSampleCount() {
-        vkGetPhysicalDeviceProperties(m_vkPhysicalDevice, &m_vkPhysicalDeviceProperties);
-        VkSampleCountFlags counts = m_vkPhysicalDeviceProperties.limits.framebufferColorSampleCounts & m_vkPhysicalDeviceProperties.limits.framebufferDepthSampleCounts;
-        if (counts & VK_SAMPLE_COUNT_64_BIT) {
-            return VK_SAMPLE_COUNT_64_BIT;
-        }
-        if (counts & VK_SAMPLE_COUNT_32_BIT) {
-            return VK_SAMPLE_COUNT_32_BIT;
-        }
-        if (counts & VK_SAMPLE_COUNT_16_BIT) {
-            return VK_SAMPLE_COUNT_16_BIT;
-        }
-        if (counts & VK_SAMPLE_COUNT_8_BIT) {
-            return VK_SAMPLE_COUNT_8_BIT;
-        }
-        if (counts & VK_SAMPLE_COUNT_4_BIT) {
-            return VK_SAMPLE_COUNT_4_BIT;
-        }
-        if (counts & VK_SAMPLE_COUNT_2_BIT) {
-            return VK_SAMPLE_COUNT_2_BIT;
-        }
-
-        return VK_SAMPLE_COUNT_1_BIT;
-    }
-
     bool VulkanRenderer::createTextureImageView() {
         return createImageView(m_vkTextureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT, m_vkMipLevels, &m_vkTextureImageView);
     }
@@ -1237,7 +1027,7 @@ namespace Genesis {
         viewInfo.subresourceRange.baseArrayLayer = 0;
         viewInfo.subresourceRange.layerCount = 1;
 
-        if (vkCreateImageView(m_vkDevice, &viewInfo, nullptr, imageView) != VK_SUCCESS) {
+        if (vkCreateImageView(m_vulkanDevice.logicalDevice(), &viewInfo, nullptr, imageView) != VK_SUCCESS) {
             GN_CORE_ERROR("Failed to create image view.");
             return false;
         }
@@ -1272,25 +1062,25 @@ namespace Genesis {
         imageInfo.samples = numSamples;
         imageInfo.flags = 0;  // Optional
 
-        if (vkCreateImage(m_vkDevice, &imageInfo, nullptr, &image) != VK_SUCCESS) {
+        if (vkCreateImage(m_vulkanDevice.logicalDevice(), &imageInfo, nullptr, &image) != VK_SUCCESS) {
             GN_CORE_ERROR("Failed to create image.");
             return false;
         }
 
         VkMemoryRequirements memRequirements;
-        vkGetImageMemoryRequirements(m_vkDevice, image, &memRequirements);
+        vkGetImageMemoryRequirements(m_vulkanDevice.logicalDevice(), image, &memRequirements);
 
         VkMemoryAllocateInfo allocInfo{};
         allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
         allocInfo.allocationSize = memRequirements.size;
         allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, properties);
 
-        if (vkAllocateMemory(m_vkDevice, &allocInfo, nullptr, &imageMemory) != VK_SUCCESS) {
+        if (vkAllocateMemory(m_vulkanDevice.logicalDevice(), &allocInfo, nullptr, &imageMemory) != VK_SUCCESS) {
             GN_CORE_ERROR("Failed to allocate image memory.");
             return false;
         }
 
-        vkBindImageMemory(m_vkDevice, image, imageMemory, 0);
+        vkBindImageMemory(m_vulkanDevice.logicalDevice(), image, imageMemory, 0);
 
         GN_CORE_INFO("Image loaded successfully.");
         return true;
@@ -1305,7 +1095,7 @@ namespace Genesis {
         samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
         samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
         samplerInfo.anisotropyEnable = VK_TRUE;
-        samplerInfo.maxAnisotropy = m_vkPhysicalDeviceProperties.limits.maxSamplerAnisotropy;
+        samplerInfo.maxAnisotropy = m_vulkanDevice.physicalDeviceProperties().limits.maxSamplerAnisotropy;
         samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
         samplerInfo.unnormalizedCoordinates = VK_FALSE;
         samplerInfo.compareEnable = VK_FALSE;
@@ -1315,7 +1105,7 @@ namespace Genesis {
         samplerInfo.minLod = 0.0f;      // Optional
         samplerInfo.maxLod = static_cast<float>(m_vkMipLevels);
 
-        if (vkCreateSampler(m_vkDevice, &samplerInfo, nullptr, &m_vkTextureSampler) != VK_SUCCESS) {
+        if (vkCreateSampler(m_vulkanDevice.logicalDevice(), &samplerInfo, nullptr, &m_vkTextureSampler) != VK_SUCCESS) {
             GN_CORE_ERROR("Failed to create texture sampler.");
             return false;
         }
@@ -1431,7 +1221,7 @@ namespace Genesis {
         allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
         allocInfo.commandBufferCount = (uint32_t)m_vkCommandBuffers.size();
 
-        if (vkAllocateCommandBuffers(m_vkDevice, &allocInfo, m_vkCommandBuffers.data()) != VK_SUCCESS) {
+        if (vkAllocateCommandBuffers(m_vulkanDevice.logicalDevice(), &allocInfo, m_vkCommandBuffers.data()) != VK_SUCCESS) {
             GN_CORE_ERROR("Failed to allocate command buffers.");
             return false;
         }
@@ -1516,9 +1306,9 @@ namespace Genesis {
         fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
         for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-            if (vkCreateSemaphore(m_vkDevice, &semaphoreInfo, nullptr, &m_vkImageAvailableSemaphores[i]) != VK_SUCCESS ||
-                vkCreateSemaphore(m_vkDevice, &semaphoreInfo, nullptr, &m_vkRenderFinishedSemaphores[i]) != VK_SUCCESS ||
-                vkCreateFence(m_vkDevice, &fenceInfo, nullptr, &m_vkInFlightFences[i]) != VK_SUCCESS) {
+            if (vkCreateSemaphore(m_vulkanDevice.logicalDevice(), &semaphoreInfo, nullptr, &m_vkImageAvailableSemaphores[i]) != VK_SUCCESS ||
+                vkCreateSemaphore(m_vulkanDevice.logicalDevice(), &semaphoreInfo, nullptr, &m_vkRenderFinishedSemaphores[i]) != VK_SUCCESS ||
+                vkCreateFence(m_vulkanDevice.logicalDevice(), &fenceInfo, nullptr, &m_vkInFlightFences[i]) != VK_SUCCESS) {
                 GN_CORE_ERROR("Failed to create semaphores.");
                 return false;
             }
@@ -1581,9 +1371,9 @@ namespace Genesis {
                      stagingBuffer, stagingBufferMemory);
 
         void* data;
-        vkMapMemory(m_vkDevice, stagingBufferMemory, 0, bufferSize, 0, &data);
+        vkMapMemory(m_vulkanDevice.logicalDevice(), stagingBufferMemory, 0, bufferSize, 0, &data);
         memcpy(data, m_vertices.data(), (size_t)bufferSize);
-        vkUnmapMemory(m_vkDevice, stagingBufferMemory);
+        vkUnmapMemory(m_vulkanDevice.logicalDevice(), stagingBufferMemory);
 
         createBuffer(bufferSize,
                      VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
@@ -1593,8 +1383,8 @@ namespace Genesis {
 
         copyBuffer(stagingBuffer, m_vkVertexBuffer, bufferSize);
 
-        vkDestroyBuffer(m_vkDevice, stagingBuffer, nullptr);
-        vkFreeMemory(m_vkDevice, stagingBufferMemory, nullptr);
+        vkDestroyBuffer(m_vulkanDevice.logicalDevice(), stagingBuffer, nullptr);
+        vkFreeMemory(m_vulkanDevice.logicalDevice(), stagingBufferMemory, nullptr);
 
         GN_CORE_INFO("Vulkan vertex buffer created.");
         return true;
@@ -1612,9 +1402,9 @@ namespace Genesis {
                      stagingBufferMemory);
 
         void* data;
-        vkMapMemory(m_vkDevice, stagingBufferMemory, 0, bufferSize, 0, &data);
+        vkMapMemory(m_vulkanDevice.logicalDevice(), stagingBufferMemory, 0, bufferSize, 0, &data);
         memcpy(data, m_indices.data(), (size_t)bufferSize);
-        vkUnmapMemory(m_vkDevice, stagingBufferMemory);
+        vkUnmapMemory(m_vulkanDevice.logicalDevice(), stagingBufferMemory);
 
         createBuffer(bufferSize,
                      VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
@@ -1624,8 +1414,8 @@ namespace Genesis {
 
         copyBuffer(stagingBuffer, m_vkIndexBuffer, bufferSize);
 
-        vkDestroyBuffer(m_vkDevice, stagingBuffer, nullptr);
-        vkFreeMemory(m_vkDevice, stagingBufferMemory, nullptr);
+        vkDestroyBuffer(m_vulkanDevice.logicalDevice(), stagingBuffer, nullptr);
+        vkFreeMemory(m_vulkanDevice.logicalDevice(), stagingBufferMemory, nullptr);
 
         return true;
     }
@@ -1642,7 +1432,7 @@ namespace Genesis {
                          VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
                          VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
                          m_vkUniformBuffers[i], m_vkUniformBuffersMemory[i]);
-            vkMapMemory(m_vkDevice, m_vkUniformBuffersMemory[i], 0, bufferSize, 0, &m_vkUniformBuffersMapped[i]);
+            vkMapMemory(m_vulkanDevice.logicalDevice(), m_vkUniformBuffersMemory[i], 0, bufferSize, 0, &m_vkUniformBuffersMapped[i]);
         }
 
         GN_CORE_INFO("Vulkan uniform buffers created successfully.");
@@ -1662,7 +1452,7 @@ namespace Genesis {
         poolInfo.pPoolSizes = poolSizes.data();
         poolInfo.maxSets = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
 
-        if (vkCreateDescriptorPool(m_vkDevice, &poolInfo, nullptr, &m_vkDescriptorPool) != VK_SUCCESS) {
+        if (vkCreateDescriptorPool(m_vulkanDevice.logicalDevice(), &poolInfo, nullptr, &m_vkDescriptorPool) != VK_SUCCESS) {
             GN_CORE_ERROR("Failed to create descriptor pool.");
             return false;
         }
@@ -1680,7 +1470,7 @@ namespace Genesis {
         allocInfo.pSetLayouts = layouts.data();
 
         m_vkDescriptorSets.resize(MAX_FRAMES_IN_FLIGHT);
-        if (vkAllocateDescriptorSets(m_vkDevice, &allocInfo, m_vkDescriptorSets.data()) != VK_SUCCESS) {
+        if (vkAllocateDescriptorSets(m_vulkanDevice.logicalDevice(), &allocInfo, m_vkDescriptorSets.data()) != VK_SUCCESS) {
             GN_CORE_ERROR("Failed to allocate descriptor sets.");
             return false;
         }
@@ -1715,7 +1505,7 @@ namespace Genesis {
             descriptorWrites[1].descriptorCount = 1;
             descriptorWrites[1].pImageInfo = &imageInfo;
 
-            vkUpdateDescriptorSets(m_vkDevice, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
+            vkUpdateDescriptorSets(m_vulkanDevice.logicalDevice(), static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
         }
 
         GN_CORE_INFO("Vulkan descriptor sets created successfully.");
@@ -1748,25 +1538,25 @@ namespace Genesis {
         bufferInfo.usage = usage;
         bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
-        if (vkCreateBuffer(m_vkDevice, &bufferInfo, nullptr, &buffer) != VK_SUCCESS) {
+        if (vkCreateBuffer(m_vulkanDevice.logicalDevice(), &bufferInfo, nullptr, &buffer) != VK_SUCCESS) {
             GN_CORE_ERROR("Failed to create vertex buffer.");
             return false;
         }
 
         VkMemoryRequirements memRequirements;
-        vkGetBufferMemoryRequirements(m_vkDevice, buffer, &memRequirements);
+        vkGetBufferMemoryRequirements(m_vulkanDevice.logicalDevice(), buffer, &memRequirements);
 
         VkMemoryAllocateInfo allocInfo{};
         allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
         allocInfo.allocationSize = memRequirements.size;
         allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, properties);
 
-        if (vkAllocateMemory(m_vkDevice, &allocInfo, nullptr, &bufferMemory) != VK_SUCCESS) {
+        if (vkAllocateMemory(m_vulkanDevice.logicalDevice(), &allocInfo, nullptr, &bufferMemory) != VK_SUCCESS) {
             GN_CORE_ERROR("Failed to allocate vertex buffer memory.");
             return false;
         }
 
-        vkBindBufferMemory(m_vkDevice, buffer, bufferMemory, 0);
+        vkBindBufferMemory(m_vulkanDevice.logicalDevice(), buffer, bufferMemory, 0);
 
         return true;
     }
@@ -1777,7 +1567,7 @@ namespace Genesis {
         createImage(m_vkSwapchainExtent.width,
                     m_vkSwapchainExtent.height,
                     1,
-                    m_vkMsaaSamples,
+                    m_vulkanDevice.msaaSamples(),
                     depthFormat,
                     VK_IMAGE_TILING_OPTIMAL,
                     VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
@@ -1797,7 +1587,7 @@ namespace Genesis {
                                                  VkFormatFeatureFlags features) {
         for (VkFormat format : candidates) {
             VkFormatProperties props;
-            vkGetPhysicalDeviceFormatProperties(m_vkPhysicalDevice, format, &props);
+            vkGetPhysicalDeviceFormatProperties(m_vulkanDevice.physicalDevice(), format, &props);
 
             if (tiling == VK_IMAGE_TILING_LINEAR && (props.linearTilingFeatures & features) == features) {
                 return format;
@@ -1828,7 +1618,7 @@ namespace Genesis {
         allocInfo.commandBufferCount = 1;
 
         VkCommandBuffer commandBuffer;
-        vkAllocateCommandBuffers(m_vkDevice, &allocInfo, &commandBuffer);
+        vkAllocateCommandBuffers(m_vulkanDevice.logicalDevice(), &allocInfo, &commandBuffer);
 
         VkCommandBufferBeginInfo beginInfo{};
         beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -1847,10 +1637,10 @@ namespace Genesis {
         submitInfo.commandBufferCount = 1;
         submitInfo.pCommandBuffers = &commandBuffer;
 
-        vkQueueSubmit(m_vkGraphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
-        vkQueueWaitIdle(m_vkGraphicsQueue);
+        vkQueueSubmit(m_vulkanDevice.graphicsQueue(), 1, &submitInfo, VK_NULL_HANDLE);
+        vkQueueWaitIdle(m_vulkanDevice.graphicsQueue());
 
-        vkFreeCommandBuffers(m_vkDevice, m_vkCommandPool, 1, &commandBuffer);
+        vkFreeCommandBuffers(m_vulkanDevice.logicalDevice(), m_vkCommandPool, 1, &commandBuffer);
     }
 
     void VulkanRenderer::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size) {
@@ -1867,7 +1657,7 @@ namespace Genesis {
 
     uint32_t VulkanRenderer::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) {
         VkPhysicalDeviceMemoryProperties memProperties;
-        vkGetPhysicalDeviceMemoryProperties(m_vkPhysicalDevice, &memProperties);
+        vkGetPhysicalDeviceMemoryProperties(m_vulkanDevice.physicalDevice(), &memProperties);
 
         for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++) {
             if ((typeFilter & (1 << i)) && (memProperties.memoryTypes[i].propertyFlags & properties) == properties) {

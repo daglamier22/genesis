@@ -1,17 +1,10 @@
 #pragma once
 
-#include <vulkan/vulkan.hpp>
-
-#define GLM_FORCE_RADIANS
-#define GLM_FORCE_DEPTH_ZERO_TO_ONE
-#define GLM_ENABLE_EXPERIMENTAL
-#include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
-#include <glm/gtx/hash.hpp>
-
 #include "Core/EventSystem.h"
 #include "Core/Logger.h"
 #include "Core/Renderer.h"
+#include "VulkanDevice.h"
+#include "VulkanTypes.h"
 
 namespace Genesis {
     struct Vertex {
@@ -70,21 +63,6 @@ namespace Genesis {
     const std::string MODEL_PATH = "assets/models/viking_room.obj";
     const std::string TEXTURE_PATH = "assets/textures/viking_room.png";
 
-    struct QueueFamilyIndices {
-            std::optional<uint32_t> graphicsFamily;
-            std::optional<uint32_t> presentFamily;
-
-            bool isComplete() {
-                return graphicsFamily.has_value() && presentFamily.has_value();
-            }
-    };
-
-    struct SwapChainSupportDetails {
-            VkSurfaceCapabilitiesKHR capabilities;
-            std::vector<VkSurfaceFormatKHR> formats;
-            std::vector<VkPresentModeKHR> presentModes;
-    };
-
     struct UniformBufferObject {
             alignas(16) glm::mat4 model;
             alignas(16) glm::mat4 view;
@@ -113,19 +91,12 @@ namespace Genesis {
             bool checkValidationLayerSupport(std::vector<const char*>& layers);
             std::vector<const char*> getRequiredExtensions();
 
-            bool pickPhysicalDevice();
-            bool createLogicalDevice();
-            QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device);
-            SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice device);
-            bool checkDeviceExtensionSupport(VkPhysicalDevice device);
-            bool isDeviceSuitable(VkPhysicalDevice device);
-
             bool createSurface();
             bool createSwapChain();
             bool createImageViews();
             bool createFramebuffers();
-            VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats);
-            VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes);
+            vk::SurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<vk::SurfaceFormatKHR>& availableFormats);
+            vk::PresentModeKHR chooseSwapPresentMode(const std::vector<vk::PresentModeKHR>& availablePresentModes);
             VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities);
             void cleanupSwapChain();
             void recreateSwapChain();
@@ -145,7 +116,6 @@ namespace Genesis {
 
             bool createTextureImage();
             bool generateMipmaps(VkImage image, VkFormat imageFormat, int32_t texWidth, int32_t texHeight, uint32_t mipLevels);
-            VkSampleCountFlagBits getMaxUsableSampleCount();
             bool createTextureImageView();
             bool createImageView(VkImage image,
                                  VkFormat format,
@@ -195,13 +165,7 @@ namespace Genesis {
 
             vk::Instance m_vkInstance{nullptr};
 
-            VkPhysicalDevice m_vkPhysicalDevice = VK_NULL_HANDLE;
-            VkPhysicalDeviceProperties m_vkPhysicalDeviceProperties;
-            VkSampleCountFlagBits m_vkMsaaSamples = VK_SAMPLE_COUNT_1_BIT;
-            VkDevice m_vkDevice;
-            VkQueue m_vkGraphicsQueue;
-            VkQueue m_vkPresentQueue;
-            const std::vector<const char*> m_deviceExtensions = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
+            VulkanDevice m_vulkanDevice;
 
             VkSurfaceKHR m_vkSurface;
             VkSwapchainKHR m_vkSwapchain;
