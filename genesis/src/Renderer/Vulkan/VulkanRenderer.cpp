@@ -610,7 +610,7 @@ namespace Genesis {
         multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
         multisampling.sampleShadingEnable = VK_TRUE;  // NOTE: expensive! enable sample shading in the pipeline
         multisampling.minSampleShading = .2f;         // NOTE: expensive! min fraction for sample shading; closer to one is smoother
-        multisampling.rasterizationSamples = m_vulkanDevice.msaaSamples();
+        // multisampling.rasterizationSamples = m_vulkanDevice.msaaSamples(); // TODO: fix
         multisampling.minSampleShading = 1.0f;           // Optional
         multisampling.pSampleMask = nullptr;             // Optional
         multisampling.alphaToCoverageEnable = VK_FALSE;  // Optional
@@ -702,7 +702,7 @@ namespace Genesis {
     bool VulkanRenderer::createRenderPass() {
         VkAttachmentDescription colorAttachment{};
         colorAttachment.format = m_vkSwapchainImageFormat;
-        colorAttachment.samples = m_vulkanDevice.msaaSamples();
+        // colorAttachment.samples = m_vulkanDevice.msaaSamples(); // TODO: fix
         colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
         colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
         colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
@@ -712,7 +712,7 @@ namespace Genesis {
 
         VkAttachmentDescription depthAttachment{};
         depthAttachment.format = findDepthFormat();
-        depthAttachment.samples = m_vulkanDevice.msaaSamples();
+        // depthAttachment.samples = m_vulkanDevice.msaaSamples(); // TODO: fix
         depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
         depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
         depthAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
@@ -831,7 +831,7 @@ namespace Genesis {
         if (!createImage(m_vkSwapchainExtent.width,
                          m_vkSwapchainExtent.height,
                          1,
-                         m_vulkanDevice.msaaSamples(),
+                         VK_SAMPLE_COUNT_1_BIT,  // m_vulkanDevice.msaaSamples(), // TODO: fix
                          colorFormat,
                          VK_IMAGE_TILING_OPTIMAL,
                          VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
@@ -1570,7 +1570,7 @@ namespace Genesis {
         createImage(m_vkSwapchainExtent.width,
                     m_vkSwapchainExtent.height,
                     1,
-                    m_vulkanDevice.msaaSamples(),
+                    VK_SAMPLE_COUNT_1_BIT,  // m_vulkanDevice.msaaSamples(), // TODO: fix
                     depthFormat,
                     VK_IMAGE_TILING_OPTIMAL,
                     VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
