@@ -29,11 +29,11 @@ namespace Genesis {
             bool checkDeviceExtensionSupport(const vk::PhysicalDevice& device);
             vk::SampleCountFlagBits getMaxUsableSampleCount();
 
-            vk::PhysicalDevice m_vkPhysicalDevice;
+            vk::PhysicalDevice m_vkPhysicalDevice{nullptr};
             vk::PhysicalDeviceProperties m_vkPhysicalDeviceProperties;
-            vk::Device m_vkDevice;
-            vk::Queue m_vkGraphicsQueue;
-            vk::Queue m_vkPresentQueue;
+            vk::Device m_vkDevice{nullptr};
+            vk::Queue m_vkGraphicsQueue{nullptr};
+            vk::Queue m_vkPresentQueue{nullptr};
             const std::vector<const char*> m_deviceExtensions = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
             vk::SampleCountFlagBits m_msaaSamples = vk::SampleCountFlagBits::e1;
     };
