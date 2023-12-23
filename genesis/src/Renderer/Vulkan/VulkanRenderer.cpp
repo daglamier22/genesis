@@ -346,7 +346,6 @@ namespace Genesis {
         m_vkSurface = cStyleSurface;
 
         GN_CORE_INFO("Vulkan surface created successfully.");
-        return true;
     }
 
     bool VulkanRenderer::createSwapChain() {
