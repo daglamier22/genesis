@@ -96,7 +96,7 @@ namespace Genesis {
 
             bool createDescriptorSetLayout();
             bool createGraphicsPipeline();
-            bool createRenderPass();
+            void createRenderPass();
             VkShaderModule createShaderModule(const std::vector<char>& code);
             static std::vector<char> readFile(const std::string& filename);
 
@@ -119,14 +119,13 @@ namespace Genesis {
             bool createDescriptorPool();
             bool createDescriptorSets();
             void updateUniformBuffer(uint32_t currentImage);
-            bool createBuffer(
-                VkDeviceSize size,
-                VkBufferUsageFlags usage,
-                VkMemoryPropertyFlags properties,
-                VkBuffer& buffer,
-                VkDeviceMemory& bufferMemory);
+            bool createBuffer(VkDeviceSize size,
+                              vk::BufferUsageFlags usage,
+                              vk::MemoryPropertyFlags properties,
+                              vk::Buffer& buffer,
+                              VkDeviceMemory& bufferMemory);
             VkCommandBuffer beginSingleTimeCommands();
-            void endSignleTimeCommands(VkCommandBuffer commandBuffer);
+            void endSingleTimeCommands(VkCommandBuffer commandBuffer);
             void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
 
             vk::Instance m_vkInstance{nullptr};
@@ -145,19 +144,20 @@ namespace Genesis {
             std::vector<VkCommandBuffer> m_vkCommandBuffers;
 
             uint32_t m_vkMipLevels;
-            VkImage m_vkTextureImage;
-            VkDeviceMemory m_vkTextureImageMemory;
-            VkImageView m_vkTextureImageView;
+            VulkanImage m_textureImage;
+            // VkImage m_vkTextureImage;
+            // VkDeviceMemory m_vkTextureImageMemory;
+            // VkImageView m_vkTextureImageView;
             VkSampler m_vkTextureSampler;
 
             std::vector<Vertex> m_vertices;
             std::vector<uint32_t> m_indices;
-            VkBuffer m_vkVertexBuffer;
+            vk::Buffer m_vkVertexBuffer;
             VkDeviceMemory m_vkVertexBufferMemory;
-            VkBuffer m_vkIndexBuffer;
+            vk::Buffer m_vkIndexBuffer;
             VkDeviceMemory m_vkIndexBufferMemory;
 
-            std::vector<VkBuffer> m_vkUniformBuffers;
+            std::vector<vk::Buffer> m_vkUniformBuffers;
             std::vector<VkDeviceMemory> m_vkUniformBuffersMemory;
             std::vector<void*> m_vkUniformBuffersMapped;
 

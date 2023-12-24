@@ -37,6 +37,7 @@ namespace Genesis {
         m_vulkanDevice.createLogicalDevice(m_vkSurface);
         m_vulkanSwapchain.createSwapChain(m_vulkanDevice, m_vkSurface, m_window);
         m_vulkanSwapchain.createImageViews(m_vulkanDevice);
+        createRenderPass();
         if (!createDescriptorSetLayout()) {
             return;
         }
@@ -416,9 +417,10 @@ namespace Genesis {
 
         VkPipelineMultisampleStateCreateInfo multisampling{};
         multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-        multisampling.sampleShadingEnable = VK_TRUE;  // NOTE: expensive! enable sample shading in the pipeline
-        multisampling.minSampleShading = .2f;         // NOTE: expensive! min fraction for sample shading; closer to one is smoother
-        // multisampling.rasterizationSamples = m_vulkanDevice.msaaSamples(); // TODO: fix
+        multisampling.sampleShadingEnable = VK_FALSE;        // NOTE: expensive! enable sample shading in the pipeline
+        multisampling.minSampleShading = .2f;                // NOTE: expensive! min fraction for sample shading; closer to one is smoother
+        VkSampleCountFlagBits msaa = VK_SAMPLE_COUNT_8_BIT;  // TODO:  m_vulkanDevice.msaaSamples();
+        multisampling.rasterizationSamples = msaa;
         multisampling.minSampleShading = 1.0f;           // Optional
         multisampling.pSampleMask = nullptr;             // Optional
         multisampling.alphaToCoverageEnable = VK_FALSE;  // Optional
@@ -507,67 +509,66 @@ namespace Genesis {
         return true;
     }
 
-    bool VulkanRenderer::createRenderPass() {
-        VkAttachmentDescription colorAttachment{};
-        colorAttachment.format = m_vkSwapchainImageFormat;
-        // colorAttachment.samples = m_vulkanDevice.msaaSamples(); // TODO: fix
-        colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-        colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-        colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-        colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-        colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-        colorAttachment.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    void VulkanRenderer::createRenderPass() {
+        vk::AttachmentDescription colorAttachment = {};
+        colorAttachment.format = m_vulkanSwapchain.format();
+        colorAttachment.samples = m_vulkanDevice.msaaSamples();
+        colorAttachment.loadOp = vk::AttachmentLoadOp::eClear;
+        colorAttachment.storeOp = vk::AttachmentStoreOp::eStore;
+        colorAttachment.stencilLoadOp = vk::AttachmentLoadOp::eDontCare;
+        colorAttachment.stencilStoreOp = vk::AttachmentStoreOp::eDontCare;
+        colorAttachment.initialLayout = vk::ImageLayout::eUndefined;
+        colorAttachment.finalLayout = vk::ImageLayout::eColorAttachmentOptimal;
 
-        VkAttachmentDescription depthAttachment{};
-        depthAttachment.format = findDepthFormat();
-        // depthAttachment.samples = m_vulkanDevice.msaaSamples(); // TODO: fix
-        depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-        depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-        depthAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-        depthAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-        depthAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-        depthAttachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+        vk::AttachmentDescription depthAttachment = {};
+        depthAttachment.format = m_vulkanSwapchain.findDepthFormat(m_vulkanDevice);
+        depthAttachment.samples = m_vulkanDevice.msaaSamples();
+        depthAttachment.loadOp = vk::AttachmentLoadOp::eClear;
+        depthAttachment.storeOp = vk::AttachmentStoreOp::eDontCare;
+        depthAttachment.stencilLoadOp = vk::AttachmentLoadOp::eDontCare;
+        depthAttachment.stencilStoreOp = vk::AttachmentStoreOp::eDontCare;
+        depthAttachment.initialLayout = vk::ImageLayout::eUndefined;
+        depthAttachment.finalLayout = vk::ImageLayout::eDepthStencilAttachmentOptimal;
 
-        VkAttachmentDescription colorAttachmentResolve{};
-        colorAttachmentResolve.format = m_vkSwapchainImageFormat;
-        colorAttachmentResolve.samples = VK_SAMPLE_COUNT_1_BIT;
-        colorAttachmentResolve.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-        colorAttachmentResolve.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-        colorAttachmentResolve.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-        colorAttachmentResolve.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-        colorAttachmentResolve.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-        colorAttachmentResolve.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+        vk::AttachmentDescription colorAttachmentResolve = {};
+        colorAttachmentResolve.format = m_vulkanSwapchain.format();
+        colorAttachmentResolve.samples = vk::SampleCountFlagBits::e1;
+        colorAttachmentResolve.loadOp = vk::AttachmentLoadOp::eDontCare;
+        colorAttachmentResolve.storeOp = vk::AttachmentStoreOp::eStore;
+        colorAttachmentResolve.stencilLoadOp = vk::AttachmentLoadOp::eDontCare;
+        colorAttachmentResolve.stencilStoreOp = vk::AttachmentStoreOp::eDontCare;
+        colorAttachmentResolve.initialLayout = vk::ImageLayout::eUndefined;
+        colorAttachmentResolve.finalLayout = vk::ImageLayout::ePresentSrcKHR;
 
-        VkAttachmentReference colorAttachmentRef{};
+        vk::AttachmentReference colorAttachmentRef = {};
         colorAttachmentRef.attachment = 0;
-        colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        colorAttachmentRef.layout = vk::ImageLayout::eColorAttachmentOptimal;
 
-        VkAttachmentReference depthAttachmentRef{};
+        vk::AttachmentReference depthAttachmentRef = {};
         depthAttachmentRef.attachment = 1;
-        depthAttachmentRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+        depthAttachmentRef.layout = vk::ImageLayout::eDepthStencilAttachmentOptimal;
 
-        VkAttachmentReference colorAttachmentResolveRef{};
+        vk::AttachmentReference colorAttachmentResolveRef = {};
         colorAttachmentResolveRef.attachment = 2;
-        colorAttachmentResolveRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        colorAttachmentResolveRef.layout = vk::ImageLayout::eColorAttachmentOptimal;
 
-        VkSubpassDescription subpass{};
-        subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+        vk::SubpassDescription subpass = {};
+        subpass.pipelineBindPoint = vk::PipelineBindPoint::eGraphics;
         subpass.colorAttachmentCount = 1;
         subpass.pColorAttachments = &colorAttachmentRef;
         subpass.pDepthStencilAttachment = &depthAttachmentRef;
         subpass.pResolveAttachments = &colorAttachmentResolveRef;
 
-        VkSubpassDependency dependency{};
+        vk::SubpassDependency dependency = {};
         dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
         dependency.dstSubpass = 0;
-        dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
-        dependency.srcAccessMask = 0;
-        dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
-        dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+        dependency.srcStageMask = vk::PipelineStageFlagBits::eColorAttachmentOutput | vk::PipelineStageFlagBits::eEarlyFragmentTests;
+        dependency.srcAccessMask = vk::AccessFlagBits::eNone;
+        dependency.dstStageMask = vk::PipelineStageFlagBits::eColorAttachmentOutput | vk::PipelineStageFlagBits::eEarlyFragmentTests;
+        dependency.dstAccessMask = vk::AccessFlagBits::eColorAttachmentWrite | vk::AccessFlagBits::eDepthStencilAttachmentWrite;
 
-        std::array<VkAttachmentDescription, 3> attachments = {colorAttachment, depthAttachment, colorAttachmentResolve};
-        VkRenderPassCreateInfo renderPassInfo{};
-        renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+        std::array<vk::AttachmentDescription, 3> attachments = {colorAttachment, depthAttachment, colorAttachmentResolve};
+        vk::RenderPassCreateInfo renderPassInfo = {};
         renderPassInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
         renderPassInfo.pAttachments = attachments.data();
         renderPassInfo.subpassCount = 1;
@@ -575,13 +576,15 @@ namespace Genesis {
         renderPassInfo.dependencyCount = 1;
         renderPassInfo.pDependencies = &dependency;
 
-        if (vkCreateRenderPass(m_vulkanDevice.logicalDevice(), &renderPassInfo, nullptr, &m_vkRenderPass) != VK_SUCCESS) {
-            GN_CORE_ERROR("Failed to create render pass.");
-            return false;
+        try {
+            m_vkRenderPass = m_vulkanDevice.logicalDevice().createRenderPass(renderPassInfo);
+        } catch (vk::SystemError err) {
+            std::string errMsg = "Failed to create render pass: ";
+            GN_CORE_ERROR("{}{}", errMsg, err.what());
+            throw std::runtime_error(errMsg + err.what());
         }
 
         GN_CORE_INFO("Vulkan renderpass created successfully.");
-        return true;
     }
 
     VkShaderModule VulkanRenderer::createShaderModule(const std::vector<char>& code) {
@@ -645,11 +648,11 @@ namespace Genesis {
             return false;
         }
 
-        VkBuffer stagingBuffer;
+        vk::Buffer stagingBuffer;
         VkDeviceMemory stagingBufferMemory;
         createBuffer(imageSize,
-                     VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-                     VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                     vk::BufferUsageFlagBits::eTransferSrc,
+                     vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent,
                      stagingBuffer,
                      stagingBufferMemory);
 
@@ -660,23 +663,24 @@ namespace Genesis {
 
         stbi_image_free(pixels);
 
-        createImage(texWidth,
-                    texHeight,
-                    m_vkMipLevels,
-                    VK_SAMPLE_COUNT_1_BIT,
-                    VK_FORMAT_R8G8B8A8_SRGB,
-                    VK_IMAGE_TILING_OPTIMAL,
-                    VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-                    VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-                    m_vkTextureImage,
-                    m_vkTextureImageMemory);
+        m_textureImage.createImage(m_vulkanDevice,
+                                   texWidth,
+                                   texHeight,
+                                   m_vkMipLevels,
+                                   vk::SampleCountFlagBits::e1,
+                                   vk::Format::eR8G8B8A8Srgb,
+                                   vk::ImageTiling::eOptimal,
+                                   vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled,
+                                   vk::MemoryPropertyFlagBits::eDeviceLocal);
 
-        transitionImageLayout(m_vkTextureImage,
-                              VK_FORMAT_R8G8B8A8_SRGB,
-                              VK_IMAGE_LAYOUT_UNDEFINED,
-                              VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                              m_vkMipLevels);
-        copyBufferToImage(stagingBuffer, m_vkTextureImage, static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight));
+        m_textureImage.transitionImageLayout(m_vulkanDevice,
+                                             m_textureImage.image(),
+                                             vk::Format::eR8G8B8A8Srgb,
+                                             vk::ImageLayout::eUndefined,
+                                             vk::ImageLayout::eTransferDstOptimal,
+                                             m_vkMipLevels,
+                                             m_vkCommandPool);
+        copyBufferToImage(stagingBuffer, m_textureImage.image(), static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight));
         // transitioned to VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL while generating mipmaps
         // transitionImageLayout(m_vkTextureImage,
         //                       VK_FORMAT_R8G8B8A8_SRGB,
@@ -687,7 +691,7 @@ namespace Genesis {
         vkDestroyBuffer(m_vulkanDevice.logicalDevice(), stagingBuffer, nullptr);
         vkFreeMemory(m_vulkanDevice.logicalDevice(), stagingBufferMemory, nullptr);
 
-        if (!generateMipmaps(m_vkTextureImage, VK_FORMAT_R8G8B8A8_SRGB, texWidth, texHeight, m_vkMipLevels)) {
+        if (!generateMipmaps(m_textureImage.image(), VK_FORMAT_R8G8B8A8_SRGB, texWidth, texHeight, m_vkMipLevels)) {
             return false;
         }
 
@@ -790,7 +794,7 @@ namespace Genesis {
                              0, nullptr,
                              1, &barrier);
 
-        endSignleTimeCommands(commandBuffer);
+        endSingleTimeCommands(commandBuffer);
 
         GN_CORE_INFO("Vulkan mip maps generated successfully.");
         return true;
@@ -859,7 +863,7 @@ namespace Genesis {
             1,
             &region);
 
-        endSignleTimeCommands(commandBuffer);
+        endSingleTimeCommands(commandBuffer);
     }
 
     bool VulkanRenderer::createCommandBuffers() {
@@ -893,9 +897,9 @@ namespace Genesis {
         VkRenderPassBeginInfo renderPassInfo{};
         renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
         renderPassInfo.renderPass = m_vkRenderPass;
-        renderPassInfo.framebuffer = m_vkSwapchainFramebuffers[imageIndex];
+        renderPassInfo.framebuffer = m_vulkanSwapchain.framebuffers()[imageIndex];
         renderPassInfo.renderArea.offset = {0, 0};
-        renderPassInfo.renderArea.extent = m_vkSwapchainExtent;
+        renderPassInfo.renderArea.extent = m_vulkanSwapchain.extent();
 
         std::array<VkClearValue, 2> clearValues{};
         clearValues[0].color = {{0.0f, 0.0f, 0.0f, 1.0f}};
@@ -911,15 +915,15 @@ namespace Genesis {
         VkViewport viewport{};
         viewport.x = 0.0f;
         viewport.y = 0.0f;
-        viewport.width = static_cast<float>(m_vkSwapchainExtent.width);
-        viewport.height = static_cast<float>(m_vkSwapchainExtent.height);
+        viewport.width = static_cast<float>(m_vulkanSwapchain.extent().width);
+        viewport.height = static_cast<float>(m_vulkanSwapchain.extent().height);
         viewport.minDepth = 0.0f;
         viewport.maxDepth = 1.0f;
         vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
 
         VkRect2D scissor{};
         scissor.offset = {0, 0};
-        scissor.extent = m_vkSwapchainExtent;
+        scissor.extent = m_vulkanSwapchain.extent();
         vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
         VkBuffer vertexBuffers[] = {m_vkVertexBuffer};
@@ -1012,11 +1016,11 @@ namespace Genesis {
     bool VulkanRenderer::createVertexBuffer() {
         VkDeviceSize bufferSize = sizeof(m_vertices[0]) * m_vertices.size();
 
-        VkBuffer stagingBuffer;
+        vk::Buffer stagingBuffer;
         VkDeviceMemory stagingBufferMemory;
         createBuffer(bufferSize,
-                     VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-                     VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                     vk::BufferUsageFlagBits::eTransferSrc,
+                     vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent,
                      stagingBuffer, stagingBufferMemory);
 
         void* data;
@@ -1025,8 +1029,8 @@ namespace Genesis {
         vkUnmapMemory(m_vulkanDevice.logicalDevice(), stagingBufferMemory);
 
         createBuffer(bufferSize,
-                     VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-                     VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                     vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eVertexBuffer,
+                     vk::MemoryPropertyFlagBits::eDeviceLocal,
                      m_vkVertexBuffer,
                      m_vkVertexBufferMemory);
 
@@ -1042,11 +1046,11 @@ namespace Genesis {
     bool VulkanRenderer::createIndexBuffer() {
         VkDeviceSize bufferSize = sizeof(m_indices[0]) * m_indices.size();
 
-        VkBuffer stagingBuffer;
+        vk::Buffer stagingBuffer;
         VkDeviceMemory stagingBufferMemory;
         createBuffer(bufferSize,
-                     VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-                     VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                     vk::BufferUsageFlagBits::eTransferSrc,
+                     vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent,
                      stagingBuffer,
                      stagingBufferMemory);
 
@@ -1056,8 +1060,8 @@ namespace Genesis {
         vkUnmapMemory(m_vulkanDevice.logicalDevice(), stagingBufferMemory);
 
         createBuffer(bufferSize,
-                     VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
-                     VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                     vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eIndexBuffer,
+                     vk::MemoryPropertyFlagBits::eDeviceLocal,
                      m_vkIndexBuffer,
                      m_vkIndexBufferMemory);
 
@@ -1078,8 +1082,8 @@ namespace Genesis {
 
         for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
             createBuffer(bufferSize,
-                         VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-                         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                         vk::BufferUsageFlagBits::eUniformBuffer,
+                         vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent,
                          m_vkUniformBuffers[i], m_vkUniformBuffersMemory[i]);
             vkMapMemory(m_vulkanDevice.logicalDevice(), m_vkUniformBuffersMemory[i], 0, bufferSize, 0, &m_vkUniformBuffersMapped[i]);
         }
@@ -1130,9 +1134,10 @@ namespace Genesis {
             bufferInfo.offset = 0;
             bufferInfo.range = sizeof(UniformBufferObject);
 
+            VkImageView imageview = m_textureImage.imageView();  // TODO: temp fix
             VkDescriptorImageInfo imageInfo{};
             imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-            imageInfo.imageView = m_vkTextureImageView;
+            imageInfo.imageView = imageview;  // m_textureImageView.imageView();
             imageInfo.sampler = m_vkTextureSampler;
 
             std::array<VkWriteDescriptorSet, 2> descriptorWrites{};
@@ -1170,43 +1175,45 @@ namespace Genesis {
         UniformBufferObject ubo{};
         ubo.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
         ubo.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-        ubo.projection = glm::perspective(glm::radians(45.0f), m_vkSwapchainExtent.width / (float)m_vkSwapchainExtent.height, 0.1f, 10.0f);
+        ubo.projection = glm::perspective(glm::radians(45.0f), m_vulkanSwapchain.extent().width / (float)m_vulkanSwapchain.extent().height, 0.1f, 10.0f);
         ubo.projection[1][1] *= -1;
 
         memcpy(m_vkUniformBuffersMapped[currentImage], &ubo, sizeof(ubo));
     }
 
     bool VulkanRenderer::createBuffer(VkDeviceSize size,
-                                      VkBufferUsageFlags usage,
-                                      VkMemoryPropertyFlags properties,
-                                      VkBuffer& buffer,
+                                      vk::BufferUsageFlags usage,
+                                      vk::MemoryPropertyFlags properties,
+                                      vk::Buffer& buffer,
                                       VkDeviceMemory& bufferMemory) {
-        VkBufferCreateInfo bufferInfo{};
-        bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+        vk::BufferCreateInfo bufferInfo = {};
         bufferInfo.size = size;
         bufferInfo.usage = usage;
-        bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        bufferInfo.sharingMode = vk::SharingMode::eExclusive;
 
-        if (vkCreateBuffer(m_vulkanDevice.logicalDevice(), &bufferInfo, nullptr, &buffer) != VK_SUCCESS) {
-            GN_CORE_ERROR("Failed to create vertex buffer.");
-            return false;
+        try {
+            buffer = m_vulkanDevice.logicalDevice().createBuffer(bufferInfo);
+        } catch (vk::SystemError err) {
+            std::string errMsg = "Failed to create vertex buffer: ";
+            GN_CORE_ERROR("{}{}", errMsg, err.what());
+            throw std::runtime_error(errMsg + err.what());
         }
 
-        VkMemoryRequirements memRequirements;
-        vkGetBufferMemoryRequirements(m_vulkanDevice.logicalDevice(), buffer, &memRequirements);
+        vk::MemoryRequirements memRequirements = m_vulkanDevice.logicalDevice().getBufferMemoryRequirements(buffer);
 
-        VkMemoryAllocateInfo allocInfo{};
-        allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+        vk::MemoryAllocateInfo allocInfo = {};
         allocInfo.allocationSize = memRequirements.size;
-        allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, properties);
+        allocInfo.memoryTypeIndex = m_vulkanDevice.findMemoryType(memRequirements.memoryTypeBits, properties);
 
-        if (vkAllocateMemory(m_vulkanDevice.logicalDevice(), &allocInfo, nullptr, &bufferMemory) != VK_SUCCESS) {
-            GN_CORE_ERROR("Failed to allocate vertex buffer memory.");
-            return false;
+        try {
+            bufferMemory = m_vulkanDevice.logicalDevice().allocateMemory(allocInfo);
+        } catch (vk::SystemError err) {
+            std::string errMsg = "Failed to allocate vertex buffer memory: ";
+            GN_CORE_ERROR("{}{}", errMsg, err.what());
+            throw std::runtime_error(errMsg + err.what());
         }
 
-        vkBindBufferMemory(m_vulkanDevice.logicalDevice(), buffer, bufferMemory, 0);
-
+        m_vulkanDevice.logicalDevice().bindBufferMemory(buffer, bufferMemory, 0);
         return true;
     }
 
@@ -1229,7 +1236,7 @@ namespace Genesis {
         return commandBuffer;
     }
 
-    void VulkanRenderer::endSignleTimeCommands(VkCommandBuffer commandBuffer) {
+    void VulkanRenderer::endSingleTimeCommands(VkCommandBuffer commandBuffer) {
         vkEndCommandBuffer(commandBuffer);
 
         VkSubmitInfo submitInfo{};
