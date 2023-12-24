@@ -4,6 +4,7 @@
 #include "Core/Logger.h"
 #include "Core/Renderer.h"
 #include "VulkanDevice.h"
+#include "VulkanSwapchain.h"
 #include "VulkanTypes.h"
 
 namespace Genesis {
@@ -92,14 +93,6 @@ namespace Genesis {
             std::vector<const char*> getRequiredExtensions();
 
             void createSurface();
-            bool createSwapChain();
-            bool createImageViews();
-            bool createFramebuffers();
-            vk::SurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<vk::SurfaceFormatKHR>& availableFormats);
-            vk::PresentModeKHR chooseSwapPresentMode(const std::vector<vk::PresentModeKHR>& availablePresentModes);
-            VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities);
-            void cleanupSwapChain();
-            void recreateSwapChain();
 
             bool createDescriptorSetLayout();
             bool createGraphicsPipeline();
@@ -108,11 +101,6 @@ namespace Genesis {
             static std::vector<char> readFile(const std::string& filename);
 
             bool createCommandPool();
-            bool createColorResources();
-            bool createDepthResources();
-            VkFormat findSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features);
-            VkFormat findDepthFormat();
-            bool hasStencilComponent(VkFormat format);
 
             bool createTextureImage();
             bool generateMipmaps(VkImage image, VkFormat imageFormat, int32_t texWidth, int32_t texHeight, uint32_t mipLevels);
@@ -146,13 +134,7 @@ namespace Genesis {
             vk::SurfaceKHR m_vkSurface;
 
             VulkanDevice m_vulkanDevice;
-
-            VkSwapchainKHR m_vkSwapchain;
-            std::vector<VkImage> m_vkSwapchainImages;
-            std::vector<VkImageView> m_vkSwapchainImageViews;
-            std::vector<VkFramebuffer> m_vkSwapchainFramebuffers;
-            VkFormat m_vkSwapchainImageFormat;
-            VkExtent2D m_vkSwapchainExtent;
+            VulkanSwapchain m_vulkanSwapchain;
 
             VkRenderPass m_vkRenderPass;
             VkDescriptorSetLayout m_vkDescriptorSetLayout;
@@ -162,14 +144,6 @@ namespace Genesis {
 
             VkCommandPool m_vkCommandPool;
             std::vector<VkCommandBuffer> m_vkCommandBuffers;
-
-            VkImage m_vkColorImage;
-            VkDeviceMemory m_vkColorImageMemory;
-            VkImageView m_vkColorImageView;
-
-            VkImage m_vkDepthImage;
-            VkDeviceMemory m_vkDepthImageMemory;
-            VkImageView m_vkDepthImageView;
 
             uint32_t m_vkMipLevels;
             VkImage m_vkTextureImage;

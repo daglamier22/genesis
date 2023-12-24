@@ -35,15 +35,8 @@ namespace Genesis {
         createSurface();
         m_vulkanDevice.pickPhysicalDevice(m_vkInstance, m_vkSurface);
         m_vulkanDevice.createLogicalDevice(m_vkSurface);
-        if (!createSwapChain()) {
-            return;
-        }
-        if (!createImageViews()) {
-            return;
-        }
-        if (!createRenderPass()) {
-            return;
-        }
+        m_vulkanSwapchain.createSwapChain(m_vulkanDevice, m_vkSurface, m_window);
+        m_vulkanSwapchain.createImageViews(m_vulkanDevice);
         if (!createDescriptorSetLayout()) {
             return;
         }
@@ -53,15 +46,9 @@ namespace Genesis {
         if (!createCommandPool()) {
             return;
         }
-        if (!createColorResources()) {
-            return;
-        }
-        if (!createDepthResources()) {
-            return;
-        }
-        if (!createFramebuffers()) {
-            return;
-        }
+        m_vulkanSwapchain.createColorResources(m_vulkanDevice);
+        m_vulkanSwapchain.createDepthResources(m_vulkanDevice, m_vkCommandPool);
+        m_vulkanSwapchain.createFramebuffers(m_vulkanDevice, m_vkRenderPass);
         if (!createTextureImage()) {
             return;
         }
@@ -100,12 +87,12 @@ namespace Genesis {
         vkWaitForFences(m_vulkanDevice.logicalDevice(), 1, &m_vkInFlightFences[m_currentFrame], VK_TRUE, UINT64_MAX);
 
         uint32_t imageIndex;
-        VkResult result = vkAcquireNextImageKHR(m_vulkanDevice.logicalDevice(), m_vkSwapchain, UINT64_MAX, m_vkImageAvailableSemaphores[m_currentFrame], VK_NULL_HANDLE, &imageIndex);
+        VkResult result = vkAcquireNextImageKHR(m_vulkanDevice.logicalDevice(), m_vulkanSwapchain.swapchain(), UINT64_MAX, m_vkImageAvailableSemaphores[m_currentFrame], VK_NULL_HANDLE, &imageIndex);
         if (result == VK_ERROR_OUT_OF_DATE_KHR) {
-            recreateSwapChain();
+            m_vulkanSwapchain.recreateSwapChain(m_vulkanDevice, m_vkSurface, m_window, m_vkRenderPass, m_vkCommandPool);
             return true;
         } else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
-            GN_CORE_ERROR("Failed to acquire swwap chain image.");
+            GN_CORE_ERROR("Failed to acquire swap chain image.");
             return false;
         }
 
@@ -144,7 +131,7 @@ namespace Genesis {
         presentInfo.waitSemaphoreCount = 1;
         presentInfo.pWaitSemaphores = signalSemaphores;
 
-        VkSwapchainKHR swapChains[] = {m_vkSwapchain};
+        VkSwapchainKHR swapChains[] = {m_vulkanSwapchain.swapchain()};
         presentInfo.swapchainCount = 1;
         presentInfo.pSwapchains = swapChains;
         presentInfo.pImageIndices = &imageIndex;
@@ -154,7 +141,7 @@ namespace Genesis {
         result = vkQueuePresentKHR(m_vulkanDevice.presentQueue(), &presentInfo);
         if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || m_framebufferResized) {
             m_framebufferResized = false;
-            recreateSwapChain();
+            m_vulkanSwapchain.recreateSwapChain(m_vulkanDevice, m_vkSurface, m_window, m_vkRenderPass, m_vkCommandPool);
         } else if (result != VK_SUCCESS) {
             GN_CORE_ERROR("Failed to present swap chain image.");
             return false;
@@ -167,7 +154,7 @@ namespace Genesis {
     void VulkanRenderer::shutdown() {
         EventSystem::unregisterEvent(EventType::WindowResize, this, GN_BIND_EVENT_FN(VulkanRenderer::onResizeEvent));
 
-        cleanupSwapChain();
+        m_vulkanSwapchain.cleanupSwapChain(m_vulkanDevice);
 
         for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
             vkDestroySemaphore(m_vulkanDevice.logicalDevice(), m_vkImageAvailableSemaphores[i], nullptr);
@@ -208,26 +195,6 @@ namespace Genesis {
         }
         m_vkInstance.destroySurfaceKHR(m_vkSurface);
         m_vkInstance.destroy();
-    }
-
-    void VulkanRenderer::cleanupSwapChain() {
-        vkDestroyImageView(m_vulkanDevice.logicalDevice(), m_vkDepthImageView, nullptr);
-        vkDestroyImage(m_vulkanDevice.logicalDevice(), m_vkDepthImage, nullptr);
-        vkFreeMemory(m_vulkanDevice.logicalDevice(), m_vkDepthImageMemory, nullptr);
-
-        vkDestroyImageView(m_vulkanDevice.logicalDevice(), m_vkColorImageView, nullptr);
-        vkDestroyImage(m_vulkanDevice.logicalDevice(), m_vkColorImage, nullptr);
-        vkFreeMemory(m_vulkanDevice.logicalDevice(), m_vkColorImageMemory, nullptr);
-
-        for (auto framebuffer : m_vkSwapchainFramebuffers) {
-            vkDestroyFramebuffer(m_vulkanDevice.logicalDevice(), framebuffer, nullptr);
-        }
-
-        for (auto imageView : m_vkSwapchainImageViews) {
-            vkDestroyImageView(m_vulkanDevice.logicalDevice(), imageView, nullptr);
-        }
-
-        vkDestroySwapchainKHR(m_vulkanDevice.logicalDevice(), m_vkSwapchain, nullptr);
     }
 
     void VulkanRenderer::waitForIdle() {
@@ -346,163 +313,6 @@ namespace Genesis {
         GN_CORE_INFO("Vulkan surface created successfully.");
     }
 
-    bool VulkanRenderer::createSwapChain() {
-        SwapChainSupportDetails swapChainSupport = m_vulkanDevice.querySwapChainSupport(m_vulkanDevice.physicalDevice(), m_vkSurface);
-
-        VkSurfaceFormatKHR surfaceFormat = chooseSwapSurfaceFormat(swapChainSupport.formats);
-        vk::PresentModeKHR presentMode = chooseSwapPresentMode(swapChainSupport.presentModes);
-        VkExtent2D extent = chooseSwapExtent(swapChainSupport.capabilities);
-
-        uint32_t imageCount = swapChainSupport.capabilities.minImageCount + 1;
-        if (swapChainSupport.capabilities.maxImageCount > 0 && imageCount > swapChainSupport.capabilities.maxImageCount) {
-            imageCount = swapChainSupport.capabilities.maxImageCount;
-        }
-
-        VkSwapchainCreateInfoKHR createInfo{};
-        createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
-        createInfo.surface = m_vkSurface;
-
-        createInfo.minImageCount = imageCount;
-        createInfo.imageFormat = surfaceFormat.format;
-        createInfo.imageColorSpace = surfaceFormat.colorSpace;
-        createInfo.imageExtent = extent;
-        createInfo.imageArrayLayers = 1;
-        createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-
-        QueueFamilyIndices indices = m_vulkanDevice.findQueueFamilies(m_vulkanDevice.physicalDevice(), m_vkSurface);
-        uint32_t queueFamilyIndices[] = {indices.graphicsFamily.value(), indices.presentFamily.value()};
-
-        if (indices.graphicsFamily != indices.presentFamily) {
-            createInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
-            createInfo.queueFamilyIndexCount = 2;
-            createInfo.pQueueFamilyIndices = queueFamilyIndices;
-        } else {
-            createInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-            createInfo.queueFamilyIndexCount = 0;
-            createInfo.pQueueFamilyIndices = nullptr;
-        }
-
-        createInfo.preTransform = swapChainSupport.capabilities.currentTransform;
-        createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-        createInfo.presentMode = presentMode;
-        createInfo.clipped = VK_TRUE;
-
-        createInfo.oldSwapchain = VK_NULL_HANDLE;
-
-        if (vkCreateSwapchainKHR(m_vulkanDevice.logicalDevice(), &createInfo, nullptr, &m_vkSwapchain) != VK_SUCCESS) {
-            GN_CORE_ERROR("Failed to create swap chain.");
-            return false;
-        }
-
-        vkGetSwapchainImagesKHR(m_vulkanDevice.logicalDevice(), m_vkSwapchain, &imageCount, nullptr);
-        m_vkSwapchainImages.resize(imageCount);
-        vkGetSwapchainImagesKHR(m_vulkanDevice.logicalDevice(), m_vkSwapchain, &imageCount, m_vkSwapchainImages.data());
-
-        m_vkSwapchainImageFormat = surfaceFormat.format;
-        m_vkSwapchainExtent = extent;
-
-        GN_CORE_INFO("Vulkan swapchain created successfully.");
-        return true;
-    }
-
-    bool VulkanRenderer::createImageViews() {
-        bool success = false;
-
-        m_vkSwapchainImageViews.resize(m_vkSwapchainImages.size());
-
-        for (size_t i = 0; i < m_vkSwapchainImages.size(); i++) {
-            success = createImageView(m_vkSwapchainImages[i], m_vkSwapchainImageFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1, &m_vkSwapchainImageViews[i]);
-        }
-
-        GN_CORE_INFO("Image views created successfully.");
-        return success;
-    }
-
-    bool VulkanRenderer::createFramebuffers() {
-        m_vkSwapchainFramebuffers.resize(m_vkSwapchainImageViews.size());
-
-        for (size_t i = 0; i < m_vkSwapchainImageViews.size(); i++) {
-            std::array<VkImageView, 3> attachments = {m_vkColorImageView, m_vkDepthImageView, m_vkSwapchainImageViews[i]};
-
-            VkFramebufferCreateInfo framebufferInfo{};
-            framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-            framebufferInfo.renderPass = m_vkRenderPass;
-            framebufferInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
-            framebufferInfo.pAttachments = attachments.data();
-            framebufferInfo.width = m_vkSwapchainExtent.width;
-            framebufferInfo.height = m_vkSwapchainExtent.height;
-            framebufferInfo.layers = 1;
-
-            if (vkCreateFramebuffer(m_vulkanDevice.logicalDevice(), &framebufferInfo, nullptr, &m_vkSwapchainFramebuffers[i]) != VK_SUCCESS) {
-                GN_CORE_ERROR("Failed to create framebuffer.");
-                return false;
-            }
-        }
-
-        GN_CORE_INFO("Vulkan framebuffers created successfully.");
-        return true;
-    }
-
-    vk::SurfaceFormatKHR VulkanRenderer::chooseSwapSurfaceFormat(const std::vector<vk::SurfaceFormatKHR>& availableFormats) {
-        for (const auto& availableFormat : availableFormats) {
-            if (availableFormat.format == vk::Format::eB8G8R8A8Srgb && availableFormat.colorSpace == vk::ColorSpaceKHR::eSrgbNonlinear) {
-                return availableFormat;
-            }
-        }
-
-        return availableFormats[0];
-    }
-
-    vk::PresentModeKHR VulkanRenderer::chooseSwapPresentMode(const std::vector<vk::PresentModeKHR>& availablePresentModes) {
-        for (const auto& availablePresentMode : availablePresentModes) {
-            if (availablePresentMode == vk::PresentModeKHR::eMailbox) {
-                return availablePresentMode;
-            }
-        }
-
-        return vk::PresentModeKHR::eFifo;
-    }
-
-    VkExtent2D VulkanRenderer::chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities) {
-        std::shared_ptr<GLFWWindow> window = std::dynamic_pointer_cast<GLFWWindow>(m_window);
-        if (capabilities.currentExtent.width != std::numeric_limits<uint32_t>::max()) {
-            return capabilities.currentExtent;
-        } else {
-            int width, height;
-            glfwGetFramebufferSize((GLFWwindow*)window->getWindow(), &width, &height);
-
-            VkExtent2D actualExtent = {
-                static_cast<uint32_t>(width),
-                static_cast<uint32_t>(height)};
-
-            actualExtent.width = std::clamp(actualExtent.width, capabilities.minImageExtent.width, capabilities.maxImageExtent.width);
-            actualExtent.height = std::clamp(actualExtent.height, capabilities.minImageExtent.height, capabilities.maxImageExtent.height);
-
-            return actualExtent;
-        }
-    }
-
-    void VulkanRenderer::recreateSwapChain() {
-        std::shared_ptr<GLFWWindow> window = std::dynamic_pointer_cast<GLFWWindow>(m_window);
-        int width = (int)window->getWindowWidth();
-        int height = (int)window->getWindowHeight();
-        while (width == 0 || height == 0) {
-            window->waitForWindowToBeRestored(&width, &height);
-        }
-
-        vkDeviceWaitIdle(m_vulkanDevice.logicalDevice());
-
-        cleanupSwapChain();
-
-        createSwapChain();
-        createImageViews();
-        createColorResources();
-        createDepthResources();
-        createFramebuffers();
-
-        GN_CORE_INFO("Vulkan swapchain recreated.");
-    }
-
     bool VulkanRenderer::createDescriptorSetLayout() {
         VkDescriptorSetLayoutBinding uboLayoutBinding{};
         uboLayoutBinding.binding = 0;
@@ -577,14 +387,14 @@ namespace Genesis {
         VkViewport viewport{};
         viewport.x = 0.0f;
         viewport.y = 0.0f;
-        viewport.width = (float)m_vkSwapchainExtent.width;
-        viewport.height = (float)m_vkSwapchainExtent.height;
+        viewport.width = (float)m_vulkanSwapchain.extent().width;
+        viewport.height = (float)m_vulkanSwapchain.extent().height;
         viewport.minDepth = 0.0f;
         viewport.maxDepth = 1.0f;
 
         VkRect2D scissor{};
         scissor.offset = {0, 0};
-        scissor.extent = m_vkSwapchainExtent;
+        scissor.extent = m_vulkanSwapchain.extent();
 
         VkPipelineViewportStateCreateInfo viewportState{};
         viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
@@ -821,28 +631,6 @@ namespace Genesis {
         }
 
         GN_CORE_INFO("Vulkan command pool created successfully.");
-        return true;
-    }
-
-    bool VulkanRenderer::createColorResources() {
-        VkFormat colorFormat = m_vkSwapchainImageFormat;
-        if (!createImage(m_vkSwapchainExtent.width,
-                         m_vkSwapchainExtent.height,
-                         1,
-                         VK_SAMPLE_COUNT_1_BIT,  // m_vulkanDevice.msaaSamples(), // TODO: fix
-                         colorFormat,
-                         VK_IMAGE_TILING_OPTIMAL,
-                         VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
-                         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-                         m_vkColorImage,
-                         m_vkColorImageMemory)) {
-            return false;
-        }
-        if (!createImageView(m_vkColorImage, colorFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1, &m_vkColorImageView)) {
-            return false;
-        }
-
-        GN_CORE_INFO("Vulkan color resources created successfuly.");
         return true;
     }
 
@@ -1420,55 +1208,6 @@ namespace Genesis {
         vkBindBufferMemory(m_vulkanDevice.logicalDevice(), buffer, bufferMemory, 0);
 
         return true;
-    }
-
-    bool VulkanRenderer::createDepthResources() {
-        VkFormat depthFormat = findDepthFormat();
-
-        createImage(m_vkSwapchainExtent.width,
-                    m_vkSwapchainExtent.height,
-                    1,
-                    VK_SAMPLE_COUNT_1_BIT,  // m_vulkanDevice.msaaSamples(), // TODO: fix
-                    depthFormat,
-                    VK_IMAGE_TILING_OPTIMAL,
-                    VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
-                    VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-                    m_vkDepthImage,
-                    m_vkDepthImageMemory);
-        createImageView(m_vkDepthImage, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT, 1, &m_vkDepthImageView);
-
-        transitionImageLayout(m_vkDepthImage, depthFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, 1);
-
-        GN_CORE_INFO("Vulkan depth resources created successfully.");
-        return true;
-    }
-
-    VkFormat VulkanRenderer::findSupportedFormat(const std::vector<VkFormat>& candidates,
-                                                 VkImageTiling tiling,
-                                                 VkFormatFeatureFlags features) {
-        for (VkFormat format : candidates) {
-            VkFormatProperties props;
-            vkGetPhysicalDeviceFormatProperties(m_vulkanDevice.physicalDevice(), format, &props);
-
-            if (tiling == VK_IMAGE_TILING_LINEAR && (props.linearTilingFeatures & features) == features) {
-                return format;
-            } else if (tiling == VK_IMAGE_TILING_OPTIMAL && (props.optimalTilingFeatures & features) == features) {
-                return format;
-            }
-        }
-
-        GN_CORE_ERROR("Failed to find supported format.");
-        return VkFormat();
-    }
-
-    VkFormat VulkanRenderer::findDepthFormat() {
-        return findSupportedFormat({VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT},
-                                   VK_IMAGE_TILING_OPTIMAL,
-                                   VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
-    }
-
-    bool VulkanRenderer::hasStencilComponent(VkFormat format) {
-        return format == VK_FORMAT_D32_SFLOAT_S8_UINT || format == VK_FORMAT_D24_UNORM_S8_UINT;
     }
 
     VkCommandBuffer VulkanRenderer::beginSingleTimeCommands() {

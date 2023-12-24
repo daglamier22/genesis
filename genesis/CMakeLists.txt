@@ -18,6 +18,7 @@ add_library(genesis
     src/Platform/PlatformDetection.h
     src/Renderer/Vulkan/VulkanRenderer.cpp src/Renderer/Vulkan/VulkanRenderer.h
     src/Renderer/Vulkan/VulkanDevice.cpp src/Renderer/Vulkan/VulkanDevice.h
+    src/Renderer/Vulkan/VulkanSwapchain.cpp src/Renderer/Vulkan/VulkanSwapchain.h
     src/Renderer/Vulkan/VulkanImage.cpp src/Renderer/Vulkan/VulkanImage.h
 )
 
