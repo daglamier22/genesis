@@ -14,6 +14,7 @@
 
 #include "Core/Logger.h"
 #include "Platform/GLFWWindow.h"
+#include "VulkanShader.h"
 
 namespace Genesis {
     VulkanRenderer::VulkanRenderer(std::shared_ptr<Window> window) : Renderer(window) {
@@ -345,28 +346,19 @@ namespace Genesis {
     }
 
     bool VulkanRenderer::createGraphicsPipeline() {
-        auto vertShaderCode = readFile("assets/shaders/shader.vert.spv");
-        if (vertShaderCode.size() == 0) {
-            return false;
-        }
-        auto fragShaderCode = readFile("assets/shaders/shader.frag.spv");
-        if (fragShaderCode.size() == 0) {
-            return false;
-        }
-
-        VkShaderModule vertShaderModule = createShaderModule(vertShaderCode);
-        VkShaderModule fragShaderModule = createShaderModule(fragShaderCode);
+        VulkanShader vertShader(m_vulkanDevice, "assets/shaders/shader.vert.spv");
+        VulkanShader fragShader(m_vulkanDevice, "assets/shaders/shader.frag.spv");
 
         VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
         vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
         vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
-        vertShaderStageInfo.module = vertShaderModule;
+        vertShaderStageInfo.module = vertShader.shaderModule();
         vertShaderStageInfo.pName = "main";
 
         VkPipelineShaderStageCreateInfo fragShaderStageInfo{};
         fragShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
         fragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-        fragShaderStageInfo.module = fragShaderModule;
+        fragShaderStageInfo.module = fragShader.shaderModule();
         fragShaderStageInfo.pName = "main";
 
         VkPipelineShaderStageCreateInfo shaderStages[] = {vertShaderStageInfo, fragShaderStageInfo};
@@ -502,8 +494,8 @@ namespace Genesis {
             return false;
         }
 
-        vkDestroyShaderModule(m_vulkanDevice.logicalDevice(), vertShaderModule, nullptr);
-        vkDestroyShaderModule(m_vulkanDevice.logicalDevice(), fragShaderModule, nullptr);
+        vkDestroyShaderModule(m_vulkanDevice.logicalDevice(), vertShader.shaderModule(), nullptr);
+        vkDestroyShaderModule(m_vulkanDevice.logicalDevice(), fragShader.shaderModule(), nullptr);
 
         GN_CORE_INFO("Vulkan pipeline created successfully.");
         return true;
@@ -585,39 +577,6 @@ namespace Genesis {
         }
 
         GN_CORE_INFO("Vulkan renderpass created successfully.");
-    }
-
-    VkShaderModule VulkanRenderer::createShaderModule(const std::vector<char>& code) {
-        VkShaderModuleCreateInfo createInfo{};
-        createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-        createInfo.codeSize = code.size();
-        createInfo.pCode = reinterpret_cast<const uint32_t*>(code.data());
-        VkShaderModule shaderModule;
-        if (vkCreateShaderModule(m_vulkanDevice.logicalDevice(), &createInfo, nullptr, &shaderModule) != VK_SUCCESS) {
-            GN_CORE_ERROR("Failed to create shader module.");
-        }
-
-        return shaderModule;
-    }
-
-    std::vector<char> VulkanRenderer::readFile(const std::string& filename) {
-        std::ifstream file(filename, std::ios::ate | std::ios::binary);
-
-        if (!file.is_open()) {
-            GN_CORE_ERROR("Failed to open file {}.", filename);
-            std::vector<char> emptyContents(0);
-            return emptyContents;
-        }
-
-        size_t fileSize = (size_t)file.tellg();
-        std::vector<char> buffer(fileSize);
-
-        file.seekg(0);
-        file.read(buffer.data(), fileSize);
-
-        file.close();
-
-        return buffer;
     }
 
     bool VulkanRenderer::createCommandPool() {

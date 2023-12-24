@@ -97,8 +97,6 @@ namespace Genesis {
             bool createDescriptorSetLayout();
             bool createGraphicsPipeline();
             void createRenderPass();
-            VkShaderModule createShaderModule(const std::vector<char>& code);
-            static std::vector<char> readFile(const std::string& filename);
 
             bool createCommandPool();
 
