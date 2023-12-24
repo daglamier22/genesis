@@ -65,9 +65,7 @@ namespace Genesis {
         if (!createTextureImage()) {
             return;
         }
-        if (!createTextureImageView()) {
-            return;
-        }
+        createTextureImageView();
         if (!createTextureSampler()) {
             return;
         }
@@ -185,9 +183,9 @@ namespace Genesis {
         vkDestroyDescriptorPool(m_vulkanDevice.logicalDevice(), m_vkDescriptorPool, nullptr);
 
         vkDestroySampler(m_vulkanDevice.logicalDevice(), m_vkTextureSampler, nullptr);
-        vkDestroyImageView(m_vulkanDevice.logicalDevice(), m_vkTextureImageView, nullptr);
-        vkDestroyImage(m_vulkanDevice.logicalDevice(), m_vkTextureImage, nullptr);
-        vkFreeMemory(m_vulkanDevice.logicalDevice(), m_vkTextureImageMemory, nullptr);
+        m_textureImage.destroyImageView(m_vulkanDevice);
+        m_textureImage.destroyImage(m_vulkanDevice);
+        m_textureImage.freeImageMemory(m_vulkanDevice);
 
         vkDestroyDescriptorSetLayout(m_vulkanDevice.logicalDevice(), m_vkDescriptorSetLayout, nullptr);
 
@@ -1010,83 +1008,12 @@ namespace Genesis {
         return true;
     }
 
-    bool VulkanRenderer::createTextureImageView() {
-        return createImageView(m_vkTextureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT, m_vkMipLevels, &m_vkTextureImageView);
-    }
-
-    bool VulkanRenderer::createImageView(VkImage image,
-                                         VkFormat format,
-                                         VkImageAspectFlags aspectFlags,
-                                         uint32_t mipLevels,
-                                         VkImageView* imageView) {
-        VkImageViewCreateInfo viewInfo{};
-        viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-        viewInfo.image = image;
-        viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-        viewInfo.format = format;
-        viewInfo.subresourceRange.aspectMask = aspectFlags;
-        viewInfo.subresourceRange.baseMipLevel = 0;
-        viewInfo.subresourceRange.levelCount = mipLevels;
-        viewInfo.subresourceRange.baseArrayLayer = 0;
-        viewInfo.subresourceRange.layerCount = 1;
-
-        if (vkCreateImageView(m_vulkanDevice.logicalDevice(), &viewInfo, nullptr, imageView) != VK_SUCCESS) {
-            GN_CORE_ERROR("Failed to create image view.");
-            return false;
-        }
-
-        GN_CORE_INFO("Vulkan image view created successfully.");
-        return true;
-    }
-
-    bool VulkanRenderer::createImage(uint32_t width,
-                                     uint32_t height,
-                                     uint32_t mipLevels,
-                                     VkSampleCountFlagBits numSamples,
-                                     VkFormat format,
-                                     VkImageTiling tiling,
-                                     VkImageUsageFlags usage,
-                                     VkMemoryPropertyFlags properties,
-                                     VkImage& image,
-                                     VkDeviceMemory& imageMemory) {
-        VkImageCreateInfo imageInfo{};
-        imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-        imageInfo.imageType = VK_IMAGE_TYPE_2D;
-        imageInfo.extent.width = width;
-        imageInfo.extent.height = height;
-        imageInfo.extent.depth = 1;
-        imageInfo.mipLevels = mipLevels;
-        imageInfo.arrayLayers = 1;
-        imageInfo.format = format;
-        imageInfo.tiling = tiling;
-        imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-        imageInfo.usage = usage;
-        imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-        imageInfo.samples = numSamples;
-        imageInfo.flags = 0;  // Optional
-
-        if (vkCreateImage(m_vulkanDevice.logicalDevice(), &imageInfo, nullptr, &image) != VK_SUCCESS) {
-            GN_CORE_ERROR("Failed to create image.");
-            return false;
-        }
-
-        VkMemoryRequirements memRequirements;
-        vkGetImageMemoryRequirements(m_vulkanDevice.logicalDevice(), image, &memRequirements);
-
-        VkMemoryAllocateInfo allocInfo{};
-        allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-        allocInfo.allocationSize = memRequirements.size;
-        allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, properties);
-
-        if (vkAllocateMemory(m_vulkanDevice.logicalDevice(), &allocInfo, nullptr, &imageMemory) != VK_SUCCESS) {
-            GN_CORE_ERROR("Failed to allocate image memory.");
-            return false;
-        }
-
-        vkBindImageMemory(m_vulkanDevice.logicalDevice(), image, imageMemory, 0);
-
-        GN_CORE_INFO("Image loaded successfully.");
-        return true;
+    void VulkanRenderer::createTextureImageView() {
+        m_textureImage.createImageView(m_vulkanDevice,
+                                       m_textureImage.image(),
+                                       vk::Format::eR8G8B8A8Srgb,
+                                       vk::ImageAspectFlagBits::eColor,
+                                       m_vkMipLevels);
     }
 
     bool VulkanRenderer::createTextureSampler() {
@@ -1114,75 +1041,6 @@ namespace Genesis {
         }
 
         GN_CORE_INFO("Vulkan texture sampler created succesfully.");
-        return true;
-    }
-
-    bool VulkanRenderer::transitionImageLayout(VkImage image,
-                                               VkFormat format,
-                                               VkImageLayout oldLayout,
-                                               VkImageLayout newLayout,
-                                               uint32_t mipLevels) {
-        VkCommandBuffer commandBuffer = beginSingleTimeCommands();
-
-        VkImageMemoryBarrier barrier{};
-        barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-        barrier.oldLayout = oldLayout;
-        barrier.newLayout = newLayout;
-        barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-        barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-        barrier.image = image;
-
-        if (newLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL) {
-            barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
-
-            if (hasStencilComponent(format)) {
-                barrier.subresourceRange.aspectMask |= VK_IMAGE_ASPECT_STENCIL_BIT;
-            }
-        } else {
-            barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        }
-
-        barrier.subresourceRange.baseMipLevel = 0;
-        barrier.subresourceRange.levelCount = mipLevels;
-        barrier.subresourceRange.baseArrayLayer = 0;
-        barrier.subresourceRange.layerCount = 1;
-
-        VkPipelineStageFlags sourceStage;
-        VkPipelineStageFlags destinationStage;
-
-        if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL) {
-            barrier.srcAccessMask = 0;
-            barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-
-            sourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-            destinationStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
-        } else if (oldLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) {
-            barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-            barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-
-            sourceStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
-            destinationStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-        } else if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL) {
-            barrier.srcAccessMask = 0;
-            barrier.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-
-            sourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-            destinationStage = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
-        } else {
-            GN_CORE_ERROR("Unsupported layout transition.");
-            return false;
-        }
-
-        vkCmdPipelineBarrier(
-            commandBuffer,
-            sourceStage, destinationStage,
-            0,
-            0, nullptr,
-            0, nullptr,
-            1, &barrier);
-
-        endSignleTimeCommands(commandBuffer);
-
         return true;
     }
 
