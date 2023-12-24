@@ -21,6 +21,7 @@ add_library(genesis
     src/Renderer/Vulkan/VulkanSwapchain.cpp src/Renderer/Vulkan/VulkanSwapchain.h
     src/Renderer/Vulkan/VulkanImage.cpp src/Renderer/Vulkan/VulkanImage.h
     src/Renderer/Vulkan/VulkanShader.cpp src/Renderer/Vulkan/VulkanShader.h
+    src/Renderer/Vulkan/VulkanPipeline.cpp src/Renderer/Vulkan/VulkanPipeline.h
 )
 
 target_link_libraries(genesis quill xcb xcb-util xcb-keysyms glfw glm vulkan)

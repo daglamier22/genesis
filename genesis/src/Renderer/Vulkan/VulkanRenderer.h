@@ -4,71 +4,15 @@
 #include "Core/Logger.h"
 #include "Core/Renderer.h"
 #include "VulkanDevice.h"
+#include "VulkanPipeline.h"
 #include "VulkanSwapchain.h"
 #include "VulkanTypes.h"
-
-namespace Genesis {
-    struct Vertex {
-            glm::vec3 pos;
-            glm::vec3 color;
-            glm::vec2 texCoord;
-
-            static VkVertexInputBindingDescription getBindingDescription() {
-                VkVertexInputBindingDescription bindingDescription{};
-                bindingDescription.binding = 0;
-                bindingDescription.stride = sizeof(Vertex);
-                bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-
-                return bindingDescription;
-            }
-
-            static std::array<VkVertexInputAttributeDescription, 3> getAttributeDescriptions() {
-                std::array<VkVertexInputAttributeDescription, 3> attributeDescriptions{};
-
-                attributeDescriptions[0].binding = 0;
-                attributeDescriptions[0].location = 0;
-                attributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
-                attributeDescriptions[0].offset = offsetof(Vertex, pos);
-
-                attributeDescriptions[1].binding = 0;
-                attributeDescriptions[1].location = 1;
-                attributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
-                attributeDescriptions[1].offset = offsetof(Vertex, color);
-
-                attributeDescriptions[2].binding = 0;
-                attributeDescriptions[2].location = 2;
-                attributeDescriptions[2].format = VK_FORMAT_R32G32_SFLOAT;
-                attributeDescriptions[2].offset = offsetof(Vertex, texCoord);
-
-                return attributeDescriptions;
-            }
-
-            bool operator==(const Vertex& other) const {
-                return pos == other.pos && color == other.color && texCoord == other.texCoord;
-            }
-    };
-}  // namespace Genesis
-
-namespace std {
-    template <>
-    struct hash<Genesis::Vertex> {
-            size_t operator()(Genesis::Vertex const& vertex) const {
-                return ((hash<glm::vec3>()(vertex.pos) ^ (hash<glm::vec3>()(vertex.color) << 1)) >> 1) ^ (hash<glm::vec2>()(vertex.texCoord) << 1);
-            }
-    };
-};  // namespace std
 
 namespace Genesis {
     const int MAX_FRAMES_IN_FLIGHT = 2;
 
     const std::string MODEL_PATH = "assets/models/viking_room.obj";
     const std::string TEXTURE_PATH = "assets/textures/viking_room.png";
-
-    struct UniformBufferObject {
-            alignas(16) glm::mat4 model;
-            alignas(16) glm::mat4 view;
-            alignas(16) glm::mat4 projection;
-    };
 
     class VulkanRenderer : public Renderer {
         public:
@@ -94,10 +38,7 @@ namespace Genesis {
 
             void createSurface();
 
-            bool createDescriptorSetLayout();
-            bool createGraphicsPipeline();
-            void createRenderPass();
-
+            void createDescriptorSetLayout(VulkanDevice& vulkanDevice);
             bool createCommandPool();
 
             bool createTextureImage();
@@ -131,21 +72,16 @@ namespace Genesis {
 
             VulkanDevice m_vulkanDevice;
             VulkanSwapchain m_vulkanSwapchain;
+            VulkanPipeline m_vulkanPipeline;
 
-            VkRenderPass m_vkRenderPass;
-            VkDescriptorSetLayout m_vkDescriptorSetLayout;
+            vk::DescriptorSetLayout m_vkDescriptorSetLayout;
             std::vector<VkDescriptorSet> m_vkDescriptorSets;
-            VkPipelineLayout m_vkPipelineLayout;
-            VkPipeline m_vkGraphicsPipeline;
 
             VkCommandPool m_vkCommandPool;
             std::vector<VkCommandBuffer> m_vkCommandBuffers;
 
             uint32_t m_vkMipLevels;
             VulkanImage m_textureImage;
-            // VkImage m_vkTextureImage;
-            // VkDeviceMemory m_vkTextureImageMemory;
-            // VkImageView m_vkTextureImageView;
             VkSampler m_vkTextureSampler;
 
             std::vector<Vertex> m_vertices;
