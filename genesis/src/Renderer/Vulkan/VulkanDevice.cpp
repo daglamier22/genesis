@@ -23,7 +23,6 @@ namespace Genesis {
         for (const auto& device : devices) {
             if (isDeviceSuitable(device, surface)) {
                 m_vkPhysicalDevice = device;
-                m_msaaSamples = getMaxUsableSampleCount();
                 break;
             }
         }
@@ -35,6 +34,7 @@ namespace Genesis {
         }
 
         m_vkPhysicalDeviceProperties = m_vkPhysicalDevice.getProperties();
+        m_msaaSamples = getMaxUsableSampleCount();
 
         std::string deviceType;
         switch (m_vkPhysicalDeviceProperties.deviceType) {
