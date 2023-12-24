@@ -197,4 +197,17 @@ namespace Genesis {
 
         return vk::SampleCountFlagBits::e1;
     }
+
+    uint32_t VulkanDevice::findMemoryType(uint32_t typeFilter, vk::MemoryPropertyFlags properties) {
+        vk::PhysicalDeviceMemoryProperties memProperties = physicalDevice().getMemoryProperties();
+
+        for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++) {
+            if ((typeFilter & (1 << i)) && (memProperties.memoryTypes[i].propertyFlags & properties) == properties) {
+                return i;
+            }
+        }
+
+        GN_CORE_ERROR("Failed to find suitable memory type.");
+        return 999999;
+    }
 }  // namespace Genesis

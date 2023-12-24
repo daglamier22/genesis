@@ -23,6 +23,7 @@ namespace Genesis {
 
             SwapChainSupportDetails querySwapChainSupport(const vk::PhysicalDevice& device, const vk::SurfaceKHR surface);
             QueueFamilyIndices findQueueFamilies(const vk::PhysicalDevice& device, const vk::SurfaceKHR surface);
+            uint32_t findMemoryType(uint32_t typeFilter, vk::MemoryPropertyFlags properties);
 
         private:
             bool isDeviceSuitable(const vk::PhysicalDevice& device, const vk::SurfaceKHR surface);

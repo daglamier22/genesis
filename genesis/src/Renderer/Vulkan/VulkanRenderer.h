@@ -128,7 +128,6 @@ namespace Genesis {
             VkCommandBuffer beginSingleTimeCommands();
             void endSignleTimeCommands(VkCommandBuffer commandBuffer);
             void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
-            uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
 
             vk::Instance m_vkInstance{nullptr};
             vk::SurfaceKHR m_vkSurface;
