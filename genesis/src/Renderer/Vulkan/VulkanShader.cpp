@@ -23,6 +23,7 @@ namespace Genesis {
 
     vk::ShaderModule VulkanShader::createShaderModule(VulkanDevice& vulkanDevice, const std::vector<char>& code) {
         vk::ShaderModuleCreateInfo createInfo = {};
+        createInfo.flags = vk::ShaderModuleCreateFlags();
         createInfo.codeSize = code.size();
         createInfo.pCode = reinterpret_cast<const uint32_t*>(code.data());
         vk::ShaderModule shaderModule;
