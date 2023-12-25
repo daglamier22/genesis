@@ -25,9 +25,19 @@ namespace Genesis {
     }
 
     void Application::run() {
+        using Clock = std::chrono::steady_clock;
+        using duration = std::chrono::duration<double>;
+        using time_point = std::chrono::time_point<Clock, duration>;
+        time_point previousTime = Clock::now();
         while (m_isRunning) {
             m_window->onUpdate();
             m_renderer->drawFrame();
+            time_point currentTime = Clock::now();
+            auto frameTime = currentTime - previousTime;
+            auto fps = 1 / frameTime.count();
+            GN_CORE_TRACE2("frameTime: {}, fps: {}", frameTime, fps);
+
+            previousTime = currentTime;
         }
 
         m_renderer->waitForIdle();
