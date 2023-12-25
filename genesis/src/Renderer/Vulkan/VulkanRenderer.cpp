@@ -609,7 +609,7 @@ namespace Genesis {
     bool VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex) {
         VkCommandBufferBeginInfo beginInfo{};
         beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-        beginInfo.flags = 0;                   // Optional
+        beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
         beginInfo.pInheritanceInfo = nullptr;  // Optional
 
         if (vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS) {
