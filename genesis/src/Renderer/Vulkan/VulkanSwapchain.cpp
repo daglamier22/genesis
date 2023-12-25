@@ -161,7 +161,7 @@ namespace Genesis {
 
     vk::PresentModeKHR VulkanSwapchain::chooseSwapPresentMode(const std::vector<vk::PresentModeKHR>& availablePresentModes) {
         for (const auto& availablePresentMode : availablePresentModes) {
-            if (availablePresentMode == vk::PresentModeKHR::eMailbox) {
+            if (availablePresentMode == vk::PresentModeKHR::eFifoRelaxed) {  // NOTE: consider switching to eMailbox later
                 return availablePresentMode;
             }
         }
