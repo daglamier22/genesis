@@ -5,7 +5,6 @@
 #include "Core/Renderer.h"
 #include "VulkanDevice.h"
 #include "VulkanPipeline.h"
-#include "VulkanRenderLoop.h"
 #include "VulkanSwapchain.h"
 #include "VulkanTypes.h"
 
@@ -37,6 +36,11 @@ namespace Genesis {
 
             void createSurface();
 
+            void createCommandPool();
+            void createCommandBuffers();
+            void renderFrame();
+            void recordCommandBuffer(vk::CommandBuffer commandBuffer, vk::Framebuffer framebuffer);
+
             void createDescriptorSetLayout(VulkanDevice& vulkanDevice);
 
             void createTextureImage();
@@ -44,9 +48,6 @@ namespace Genesis {
             void createTextureImageView();
             void createTextureSampler();
             void copyBufferToImage(vk::Buffer buffer, vk::Image image, uint32_t width, uint32_t height);
-
-            void drawFrameTemp(VulkanDevice& vulkanDevice, VulkanSwapchain& vulkanSwapchain);
-            void recordCommandBuffer(vk::CommandBuffer commandBuffer, uint32_t imageIndex);
 
             void loadModel();
             void createVertexBuffer();
@@ -70,7 +71,9 @@ namespace Genesis {
             VulkanDevice m_vulkanDevice;
             VulkanSwapchain m_vulkanSwapchain;
             VulkanPipeline m_vulkanPipeline;
-            VulkanRenderLoop m_vulkanRenderLoop;
+
+            vk::CommandPool m_vkCommandPool;
+            vk::CommandBuffer m_vkMainCommandBuffer;
 
             vk::DescriptorSetLayout m_vkDescriptorSetLayout;
             std::vector<vk::DescriptorSet> m_vkDescriptorSets;

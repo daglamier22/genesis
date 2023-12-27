@@ -42,9 +42,9 @@ namespace Genesis {
         m_vulkanPipeline.createRenderPass(m_vulkanDevice, m_vulkanSwapchain);
         createDescriptorSetLayout(m_vulkanDevice);
         m_vulkanPipeline.createGraphicsPipeline(m_vulkanDevice, m_vulkanSwapchain, m_vkDescriptorSetLayout);
-        m_vulkanRenderLoop.createCommandPool(m_vulkanDevice, m_vkSurface);
+        createCommandPool();
         m_vulkanSwapchain.createColorResources(m_vulkanDevice);
-        m_vulkanSwapchain.createDepthResources(m_vulkanDevice, m_vulkanRenderLoop.commandPool());
+        m_vulkanSwapchain.createDepthResources(m_vulkanDevice, m_vkCommandPool);
         m_vulkanSwapchain.createFramebuffers(m_vulkanDevice, m_vulkanPipeline.renderPass());
         createTextureImage();
         createTextureImageView();
@@ -55,114 +55,14 @@ namespace Genesis {
         createUniformBuffers();
         createDescriptorPool();
         createDescriptorSets();
-        m_vulkanRenderLoop.createCommandBuffers(m_vulkanDevice, m_vulkanSwapchain);
+        createCommandBuffers();
         m_vulkanSwapchain.createSyncObjects(m_vulkanDevice);
         EventSystem::registerEvent(EventType::WindowResize, this, GN_BIND_EVENT_FN(VulkanRenderer::onResizeEvent));
     }
 
     bool VulkanRenderer::drawFrame() {
-        drawFrameTemp(m_vulkanDevice, m_vulkanSwapchain);
+        renderFrame();
         return true;
-    }
-
-    void VulkanRenderer::drawFrameTemp(VulkanDevice& vulkanDevice, VulkanSwapchain& vulkanSwapchain) {
-        auto currentFrame = vulkanSwapchain.swapchainFrames()[m_currentFrame];
-        vk::Result result;
-        try {
-            result = vulkanDevice.logicalDevice().waitForFences(1, &currentFrame.inFlightFence, VK_TRUE, UINT64_MAX);
-        } catch (vk::SystemError err) {
-            std::string errMsg = "Failed to wait for fence: ";
-            GN_CORE_ERROR("{}{}", errMsg, err.what());
-            throw std::runtime_error(errMsg + err.what());
-        }
-
-        uint32_t imageIndex;
-        try {
-            auto result = vulkanDevice.logicalDevice().acquireNextImageKHR(m_vulkanSwapchain.swapchain(), UINT64_MAX, currentFrame.imageAvailableSemaphore, nullptr);
-            if (result.result == vk::Result::eErrorOutOfDateKHR) {
-                m_vulkanSwapchain.recreateSwapChain(m_vulkanDevice, m_vkSurface, m_window, m_vulkanPipeline.renderPass(), m_vulkanRenderLoop.commandPool());
-                return;
-            }
-            imageIndex = result.value;
-        } catch (vk::SystemError err) {
-            std::string errMsg = "Failed to aquire swap chain image: ";
-            GN_CORE_ERROR("{}{}", errMsg, err.what());
-            throw std::runtime_error(errMsg + err.what());
-        }
-        // VkResult result = vkAcquireNextImageKHR(m_vulkanDevice.logicalDevice(), m_vulkanSwapchain.swapchain(), UINT64_MAX, m_vkImageAvailableSemaphores[m_currentFrame], VK_NULL_HANDLE, &imageIndex);
-        // if (result == VK_ERROR_OUT_OF_DATE_KHR) {
-        //     return true;
-        // } else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
-        //     GN_CORE_ERROR("Failed to acquire swap chain image.");
-        //     return false;
-        // }
-
-        updateUniformBuffer(m_currentFrame);
-
-        // Only reset the fence if we are submitting work
-        try {
-            result = vulkanDevice.logicalDevice().resetFences(1, &currentFrame.inFlightFence);
-        } catch (vk::SystemError err) {
-            std::string errMsg = "Failed to reset fence: ";
-            GN_CORE_ERROR("{}{}", errMsg, err.what());
-            throw std::runtime_error(errMsg + err.what());
-        }
-
-        m_vulkanSwapchain.swapchainFrames()[m_currentFrame].commandBuffer.reset();
-        recordCommandBuffer(m_vulkanSwapchain.swapchainFrames()[m_currentFrame].commandBuffer, imageIndex);
-
-        vk::SubmitInfo submitInfo = {};
-
-        vk::Semaphore waitSemaphores[] = {currentFrame.imageAvailableSemaphore};
-        vk::PipelineStageFlags waitStages[] = {vk::PipelineStageFlagBits::eColorAttachmentOutput};
-        submitInfo.waitSemaphoreCount = 1;
-        submitInfo.pWaitSemaphores = waitSemaphores;
-        submitInfo.pWaitDstStageMask = waitStages;
-
-        submitInfo.commandBufferCount = 1;
-        submitInfo.pCommandBuffers = &m_vulkanSwapchain.swapchainFrames()[m_currentFrame].commandBuffer;
-
-        vk::Semaphore signalSemaphores[] = {currentFrame.renderFinishedSemaphore};
-        submitInfo.signalSemaphoreCount = 1;
-        submitInfo.pSignalSemaphores = signalSemaphores;
-
-        try {
-            vulkanDevice.graphicsQueue().submit(submitInfo, currentFrame.inFlightFence);
-        } catch (vk::SystemError err) {
-            std::string errMsg = "Failed to submit draw command buffer: ";
-            GN_CORE_ERROR("{}{}", errMsg, err.what());
-            throw std::runtime_error(errMsg + err.what());
-        }
-
-        vk::PresentInfoKHR presentInfo = {};
-        presentInfo.waitSemaphoreCount = 1;
-        presentInfo.pWaitSemaphores = signalSemaphores;
-
-        vk::SwapchainKHR swapChains[] = {m_vulkanSwapchain.swapchain()};
-        presentInfo.swapchainCount = 1;
-        presentInfo.pSwapchains = swapChains;
-        presentInfo.pImageIndices = &imageIndex;
-
-        try {
-            auto result = vulkanDevice.presentQueue().presentKHR(presentInfo);
-            if (result == vk::Result::eErrorOutOfDateKHR || result == vk::Result::eSuboptimalKHR || m_framebufferResized) {
-                m_framebufferResized = false;
-                m_vulkanSwapchain.recreateSwapChain(m_vulkanDevice, m_vkSurface, m_window, m_vulkanPipeline.renderPass(), m_vulkanRenderLoop.commandPool());
-            }
-        } catch (vk::SystemError err) {
-            std::string errMsg = "Failed to present swap chain image: ";
-            GN_CORE_ERROR("{}{}", errMsg, err.what());
-            throw std::runtime_error(errMsg + err.what());
-        }
-        // result = vkQueuePresentKHR(m_vulkanDevice.presentQueue(), &presentInfo);
-        // if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || m_framebufferResized) {
-        //     m_framebufferResized = false;
-        // } else if (result != VK_SUCCESS) {
-        //     GN_CORE_ERROR("Failed to present swap chain image.");
-        //     return false;
-        // }
-
-        m_currentFrame = (m_currentFrame + 1) % m_maxFramesInFlight;
     }
 
     void VulkanRenderer::shutdown() {
@@ -196,7 +96,7 @@ namespace Genesis {
         m_vulkanDevice.logicalDevice().destroyBuffer(m_vkVertexBuffer);
         m_vulkanDevice.logicalDevice().freeMemory(m_vkVertexBufferMemory);
 
-        m_vulkanDevice.logicalDevice().destroyCommandPool(m_vulkanRenderLoop.commandPool());
+        m_vulkanDevice.logicalDevice().destroyCommandPool(m_vkCommandPool);
 
         m_vulkanDevice.logicalDevice().destroyPipeline(m_vulkanPipeline.pipeline());
         m_vulkanDevice.logicalDevice().destroyPipelineLayout(m_vulkanPipeline.layout());
@@ -328,6 +228,211 @@ namespace Genesis {
         GN_CORE_INFO("Vulkan surface created successfully.");
     }
 
+    void VulkanRenderer::createCommandPool() {
+        QueueFamilyIndices queueFamilyIndices = m_vulkanDevice.findQueueFamilies(m_vulkanDevice.physicalDevice(), m_vkSurface);
+
+        vk::CommandPoolCreateInfo poolInfo = {};
+        poolInfo.flags = vk::CommandPoolCreateFlags() | vk::CommandPoolCreateFlagBits::eResetCommandBuffer;
+        poolInfo.queueFamilyIndex = queueFamilyIndices.graphicsFamily.value();
+
+        try {
+            m_vkCommandPool = m_vulkanDevice.logicalDevice().createCommandPool(poolInfo);
+        } catch (vk::SystemError err) {
+            std::string errMsg = "Failed to create command pool: ";
+            GN_CORE_ERROR("{}{}", errMsg, err.what());
+            throw std::runtime_error(errMsg + err.what());
+        }
+
+        GN_CORE_INFO("Vulkan command pool created successfully.");
+    }
+
+    void VulkanRenderer::createCommandBuffers() {
+        // create swapchain command buffers
+        m_vulkanSwapchain.createCommandBuffers(m_vulkanDevice, m_vkCommandPool);
+
+        // then create main command buffer
+        vk::CommandBufferAllocateInfo allocInfo = {};
+        allocInfo.commandPool = m_vkCommandPool;
+        allocInfo.level = vk::CommandBufferLevel::ePrimary;
+        allocInfo.commandBufferCount = 1;
+
+        try {
+            m_vkMainCommandBuffer = m_vulkanDevice.logicalDevice().allocateCommandBuffers(allocInfo)[0];
+        } catch (vk::SystemError err) {
+            std::string errMsg = "Failed to allocate command buffers: ";
+            GN_CORE_ERROR("{}{}", errMsg, err.what());
+            throw std::runtime_error(errMsg + err.what());
+        }
+
+        GN_CORE_INFO("Vulkan command buffer created successfully.");
+    }
+
+    void VulkanRenderer::renderFrame() {
+        auto currentFrame = m_vulkanSwapchain.swapchainFrames()[m_currentFrame];
+        vk::Result result;
+        try {
+            result = m_vulkanDevice.logicalDevice().waitForFences(1, &currentFrame.inFlightFence, VK_TRUE, UINT64_MAX);
+        } catch (vk::SystemError err) {
+            std::string errMsg = "Failed to wait for fence: ";
+            GN_CORE_ERROR("{}{}", errMsg, err.what());
+            throw std::runtime_error(errMsg + err.what());
+        }
+
+        uint32_t imageIndex;
+        try {
+            auto result = m_vulkanDevice.logicalDevice().acquireNextImageKHR(m_vulkanSwapchain.swapchain(), UINT64_MAX, currentFrame.imageAvailableSemaphore, nullptr);
+            if (result.result == vk::Result::eErrorOutOfDateKHR) {
+                m_vulkanSwapchain.recreateSwapChain(m_vulkanDevice, m_vkSurface, m_window, m_vulkanPipeline.renderPass(), m_vkCommandPool);
+                return;
+            }
+            imageIndex = result.value;
+        } catch (vk::SystemError err) {
+            std::string errMsg = "Failed to aquire swap chain image: ";
+            GN_CORE_ERROR("{}{}", errMsg, err.what());
+            throw std::runtime_error(errMsg + err.what());
+        }
+        // VkResult result = vkAcquireNextImageKHR(m_vulkanDevice.logicalDevice(), m_vulkanSwapchain.swapchain(), UINT64_MAX, m_vkImageAvailableSemaphores[m_currentFrame], VK_NULL_HANDLE, &imageIndex);
+        // if (result == VK_ERROR_OUT_OF_DATE_KHR) {
+        //     return true;
+        // } else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
+        //     GN_CORE_ERROR("Failed to acquire swap chain image.");
+        //     return false;
+        // }
+
+        updateUniformBuffer(m_currentFrame);
+
+        // Only reset the fence if we are submitting work
+        try {
+            result = m_vulkanDevice.logicalDevice().resetFences(1, &currentFrame.inFlightFence);
+        } catch (vk::SystemError err) {
+            std::string errMsg = "Failed to reset fence: ";
+            GN_CORE_ERROR("{}{}", errMsg, err.what());
+            throw std::runtime_error(errMsg + err.what());
+        }
+
+        m_vulkanSwapchain.swapchainFrames()[m_currentFrame].commandBuffer.reset();
+        recordCommandBuffer(currentFrame.commandBuffer, currentFrame.framebuffer);
+
+        vk::SubmitInfo submitInfo = {};
+
+        vk::Semaphore waitSemaphores[] = {currentFrame.imageAvailableSemaphore};
+        vk::PipelineStageFlags waitStages[] = {vk::PipelineStageFlagBits::eColorAttachmentOutput};
+        submitInfo.waitSemaphoreCount = 1;
+        submitInfo.pWaitSemaphores = waitSemaphores;
+        submitInfo.pWaitDstStageMask = waitStages;
+
+        submitInfo.commandBufferCount = 1;
+        submitInfo.pCommandBuffers = &currentFrame.commandBuffer;
+
+        vk::Semaphore signalSemaphores[] = {currentFrame.renderFinishedSemaphore};
+        submitInfo.signalSemaphoreCount = 1;
+        submitInfo.pSignalSemaphores = signalSemaphores;
+
+        try {
+            m_vulkanDevice.graphicsQueue().submit(submitInfo, currentFrame.inFlightFence);
+        } catch (vk::SystemError err) {
+            std::string errMsg = "Failed to submit draw command buffer: ";
+            GN_CORE_ERROR("{}{}", errMsg, err.what());
+            throw std::runtime_error(errMsg + err.what());
+        }
+
+        vk::PresentInfoKHR presentInfo = {};
+        presentInfo.waitSemaphoreCount = 1;
+        presentInfo.pWaitSemaphores = signalSemaphores;
+
+        vk::SwapchainKHR swapChains[] = {m_vulkanSwapchain.swapchain()};
+        presentInfo.swapchainCount = 1;
+        presentInfo.pSwapchains = swapChains;
+        presentInfo.pImageIndices = &imageIndex;
+
+        try {
+            auto result = m_vulkanDevice.presentQueue().presentKHR(presentInfo);
+            if (result == vk::Result::eErrorOutOfDateKHR || result == vk::Result::eSuboptimalKHR || m_framebufferResized) {
+                m_framebufferResized = false;
+                m_vulkanSwapchain.recreateSwapChain(m_vulkanDevice, m_vkSurface, m_window, m_vulkanPipeline.renderPass(), m_vkCommandPool);
+            }
+        } catch (vk::SystemError err) {
+            std::string errMsg = "Failed to present swap chain image: ";
+            GN_CORE_ERROR("{}{}", errMsg, err.what());
+            throw std::runtime_error(errMsg + err.what());
+        }
+        // result = vkQueuePresentKHR(m_vulkanDevice.presentQueue(), &presentInfo);
+        // if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || m_framebufferResized) {
+        //     m_framebufferResized = false;
+        // } else if (result != VK_SUCCESS) {
+        //     GN_CORE_ERROR("Failed to present swap chain image.");
+        //     return false;
+        // }
+
+        m_currentFrame = (m_currentFrame + 1) % m_vulkanSwapchain.swapchainFrames().size();
+    }
+
+    void VulkanRenderer::recordCommandBuffer(vk::CommandBuffer commandBuffer, vk::Framebuffer framebuffer) {
+        vk::CommandBufferBeginInfo beginInfo = {};
+        beginInfo.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit;
+
+        try {
+            commandBuffer.begin(beginInfo);
+        } catch (vk::SystemError err) {
+            std::string errMsg = "Unable to being recording command buffer: ";
+            GN_CORE_ERROR("{}{}", errMsg, err.what());
+            throw std::runtime_error(errMsg + err.what());
+        }
+
+        vk::RenderPassBeginInfo renderPassInfo = {};
+        renderPassInfo.renderPass = m_vulkanPipeline.renderPass();
+        renderPassInfo.framebuffer = framebuffer;
+        renderPassInfo.renderArea.offset.x = 0;
+        renderPassInfo.renderArea.offset.y = 0;
+        renderPassInfo.renderArea.extent = m_vulkanSwapchain.extent();
+
+        std::array<vk::ClearValue, 2> clearValues{};
+        clearValues[0].color = vk::ClearColorValue(0.0f, 0.0f, 0.0f, 1.0f);
+        clearValues[1].depthStencil = vk::ClearDepthStencilValue(1.0f, 0);
+
+        renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
+        renderPassInfo.pClearValues = clearValues.data();
+
+        commandBuffer.beginRenderPass(renderPassInfo, vk::SubpassContents::eInline);
+
+        commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, m_vulkanPipeline.pipeline());
+
+        vk::Viewport viewport = {};
+        viewport.x = 0.0f;
+        viewport.y = 0.0f;
+        viewport.width = static_cast<float>(m_vulkanSwapchain.extent().width);
+        viewport.height = static_cast<float>(m_vulkanSwapchain.extent().height);
+        viewport.minDepth = 0.0f;
+        viewport.maxDepth = 1.0f;
+        commandBuffer.setViewport(0, 1, &viewport);
+
+        vk::Rect2D scissor = {};
+        scissor.offset.x = 0;
+        scissor.offset.y = 0;
+        scissor.extent = m_vulkanSwapchain.extent();
+        commandBuffer.setScissor(0, 1, &scissor);
+
+        vk::Buffer vertexBuffers[] = {m_vkVertexBuffer};
+        vk::DeviceSize offsets[] = {0};
+        commandBuffer.bindVertexBuffers(0, 1, vertexBuffers, offsets);
+
+        commandBuffer.bindIndexBuffer(m_vkIndexBuffer, 0, vk::IndexType::eUint32);
+
+        commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_vulkanPipeline.layout(), 0, 1, &m_vkDescriptorSets[m_currentFrame], 0, nullptr);
+
+        commandBuffer.drawIndexed(static_cast<uint32_t>(m_indices.size()), 1, 0, 0, 0);
+
+        commandBuffer.endRenderPass();
+
+        try {
+            commandBuffer.end();
+        } catch (vk::SystemError err) {
+            std::string errMsg = "Failed to record command buffer: ";
+            GN_CORE_ERROR("{}{}", errMsg, err.what());
+            throw std::runtime_error(errMsg + err.what());
+        }
+    }
+
     void VulkanRenderer::createDescriptorSetLayout(VulkanDevice& vulkanDevice) {
         vk::DescriptorSetLayoutBinding uboLayoutBinding = {};
         uboLayoutBinding.binding = 0;
@@ -409,7 +514,7 @@ namespace Genesis {
                                              vk::ImageLayout::eUndefined,
                                              vk::ImageLayout::eTransferDstOptimal,
                                              m_vkMipLevels,
-                                             m_vulkanRenderLoop.commandPool());
+                                             m_vkCommandPool);
         copyBufferToImage(stagingBuffer, m_textureImage.image(), static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight));
         // transitioned to VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL while generating mipmaps
         // transitionImageLayout(m_vkTextureImage,
@@ -582,72 +687,6 @@ namespace Genesis {
                                         &region);
 
         endSingleTimeCommands(commandBuffer);
-    }
-
-    void VulkanRenderer::recordCommandBuffer(vk::CommandBuffer commandBuffer, uint32_t imageIndex) {
-        vk::CommandBufferBeginInfo beginInfo = {};
-        beginInfo.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit;
-
-        try {
-            commandBuffer.begin(beginInfo);
-        } catch (vk::SystemError err) {
-            std::string errMsg = "Unable to being recording command buffer: ";
-            GN_CORE_ERROR("{}{}", errMsg, err.what());
-            throw std::runtime_error(errMsg + err.what());
-        }
-
-        vk::RenderPassBeginInfo renderPassInfo = {};
-        renderPassInfo.renderPass = m_vulkanPipeline.renderPass();
-        renderPassInfo.framebuffer = m_vulkanSwapchain.swapchainFrames()[imageIndex].framebuffer;
-        renderPassInfo.renderArea.offset.x = 0;
-        renderPassInfo.renderArea.offset.y = 0;
-        renderPassInfo.renderArea.extent = m_vulkanSwapchain.extent();
-
-        std::array<vk::ClearValue, 2> clearValues{};
-        clearValues[0].color = vk::ClearColorValue(0.0f, 0.0f, 0.0f, 1.0f);
-        clearValues[1].depthStencil = vk::ClearDepthStencilValue(1.0f, 0);
-
-        renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
-        renderPassInfo.pClearValues = clearValues.data();
-
-        commandBuffer.beginRenderPass(renderPassInfo, vk::SubpassContents::eInline);
-
-        commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, m_vulkanPipeline.pipeline());
-
-        vk::Viewport viewport = {};
-        viewport.x = 0.0f;
-        viewport.y = 0.0f;
-        viewport.width = static_cast<float>(m_vulkanSwapchain.extent().width);
-        viewport.height = static_cast<float>(m_vulkanSwapchain.extent().height);
-        viewport.minDepth = 0.0f;
-        viewport.maxDepth = 1.0f;
-        commandBuffer.setViewport(0, 1, &viewport);
-
-        vk::Rect2D scissor = {};
-        scissor.offset.x = 0;
-        scissor.offset.y = 0;
-        scissor.extent = m_vulkanSwapchain.extent();
-        commandBuffer.setScissor(0, 1, &scissor);
-
-        vk::Buffer vertexBuffers[] = {m_vkVertexBuffer};
-        vk::DeviceSize offsets[] = {0};
-        commandBuffer.bindVertexBuffers(0, 1, vertexBuffers, offsets);
-
-        commandBuffer.bindIndexBuffer(m_vkIndexBuffer, 0, vk::IndexType::eUint32);
-
-        commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_vulkanPipeline.layout(), 0, 1, &m_vkDescriptorSets[m_currentFrame], 0, nullptr);
-
-        commandBuffer.drawIndexed(static_cast<uint32_t>(m_indices.size()), 1, 0, 0, 0);
-
-        commandBuffer.endRenderPass();
-
-        try {
-            commandBuffer.end();
-        } catch (vk::SystemError err) {
-            std::string errMsg = "Failed to record command buffer: ";
-            GN_CORE_ERROR("{}{}", errMsg, err.what());
-            throw std::runtime_error(errMsg + err.what());
-        }
     }
 
     void VulkanRenderer::loadModel() {
@@ -919,7 +958,7 @@ namespace Genesis {
     vk::CommandBuffer VulkanRenderer::beginSingleTimeCommands() {
         vk::CommandBufferAllocateInfo allocInfo = {};
         allocInfo.level = vk::CommandBufferLevel::ePrimary;
-        allocInfo.commandPool = m_vulkanRenderLoop.commandPool();
+        allocInfo.commandPool = m_vkCommandPool;
         allocInfo.commandBufferCount = 1;
 
         vk::CommandBuffer commandBuffer = m_vulkanDevice.logicalDevice().allocateCommandBuffers(allocInfo)[0];
@@ -961,7 +1000,7 @@ namespace Genesis {
 
         m_vulkanDevice.graphicsQueue().waitIdle();
 
-        m_vulkanDevice.logicalDevice().freeCommandBuffers(m_vulkanRenderLoop.commandPool(), 1, &commandBuffer);
+        m_vulkanDevice.logicalDevice().freeCommandBuffers(m_vkCommandPool, 1, &commandBuffer);
     }
 
     void VulkanRenderer::copyBuffer(vk::Buffer srcBuffer, vk::Buffer dstBuffer, vk::DeviceSize size) {
