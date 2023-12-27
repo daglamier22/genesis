@@ -6,6 +6,15 @@
 #include "VulkanTypes.h"
 
 namespace Genesis {
+    struct SwapChainFrame {
+            VulkanImage vulkanImage;
+            vk::Framebuffer framebuffer;
+            vk::CommandBuffer commandBuffer;
+            vk::Semaphore imageAvailableSemaphore;
+            vk::Semaphore renderFinishedSemaphore;
+            vk::Fence inFlightFence;
+    };
+
     class VulkanSwapchain {
         public:
             VulkanSwapchain();
@@ -15,9 +24,7 @@ namespace Genesis {
             VulkanSwapchain& operator=(const VulkanSwapchain&) = delete;
 
             vk::SwapchainKHR const& swapchain() const { return m_vkSwapchain; }
-            std::vector<VulkanImage> const& swapchainImages() { return m_swapchainImages; }
-            std::vector<vk::Framebuffer> const& framebuffers() const { return m_vkSwapchainFramebuffers; }
-            std::vector<vk::CommandBuffer> const& commandbuffers() const { return m_vkSwapchainCommandBuffers; }
+            std::vector<SwapChainFrame> const& swapchainFrames() { return m_swapchainFrames; }
             vk::Format const& format() const { return m_vkSwapchainImageFormat; }
             vk::Extent2D const& extent() const { return m_vkSwapchainExtent; }
             vk::Format const& depthFormat() const { return m_vkDepthFormat; }
@@ -28,6 +35,9 @@ namespace Genesis {
             void createDepthResources(VulkanDevice& vulkanDevice, vk::CommandPool commandPool);
             void createFramebuffers(VulkanDevice& vulkanDevice, vk::RenderPass renderPass);
             void createCommandBuffers(VulkanDevice& vulkanDevice, vk::CommandPool& commandPool);
+            void createSyncObjects(VulkanDevice& vulkanDevice);
+            vk::Semaphore createSemaphore(VulkanDevice& vulkanDevice);
+            vk::Fence createFence(VulkanDevice& vulkanDevice);
             void recreateSwapChain(VulkanDevice& vulkanDevice,
                                    const vk::SurfaceKHR& surface,
                                    std::shared_ptr<Window> window,
@@ -49,10 +59,7 @@ namespace Genesis {
             vk::Format m_vkSwapchainImageFormat;
             vk::Extent2D m_vkSwapchainExtent;
 
-            // 1 Image, ImageView, Framebuffer, and CommandBuffer for every frame
-            std::vector<VulkanImage> m_swapchainImages;
-            std::vector<vk::Framebuffer> m_vkSwapchainFramebuffers;
-            std::vector<vk::CommandBuffer> m_vkSwapchainCommandBuffers;
+            std::vector<SwapChainFrame> m_swapchainFrames;
 
             VulkanImage m_colorImage;
             VulkanImage m_depthImage;

@@ -38,7 +38,7 @@ namespace Genesis {
         m_vulkanDevice.createLogicalDevice(m_vkSurface);
         m_vulkanSwapchain.createSwapChain(m_vulkanDevice, m_vkSurface, m_window);
         m_vulkanSwapchain.createImageViews(m_vulkanDevice);
-        m_maxFramesInFlight = static_cast<uint32_t>(m_vulkanSwapchain.swapchainImages().size());
+        m_maxFramesInFlight = static_cast<uint32_t>(m_vulkanSwapchain.swapchainFrames().size());
         m_vulkanPipeline.createRenderPass(m_vulkanDevice, m_vulkanSwapchain);
         createDescriptorSetLayout(m_vulkanDevice);
         m_vulkanPipeline.createGraphicsPipeline(m_vulkanDevice, m_vulkanSwapchain, m_vkDescriptorSetLayout);
@@ -56,19 +56,20 @@ namespace Genesis {
         createDescriptorPool();
         createDescriptorSets();
         m_vulkanRenderLoop.createCommandBuffers(m_vulkanDevice, m_vulkanSwapchain);
-        createSyncObjects(m_vulkanDevice);
+        m_vulkanSwapchain.createSyncObjects(m_vulkanDevice);
         EventSystem::registerEvent(EventType::WindowResize, this, GN_BIND_EVENT_FN(VulkanRenderer::onResizeEvent));
     }
 
     bool VulkanRenderer::drawFrame() {
-        drawFrameTemp(m_vulkanDevice);
+        drawFrameTemp(m_vulkanDevice, m_vulkanSwapchain);
         return true;
     }
 
-    void VulkanRenderer::drawFrameTemp(VulkanDevice& vulkanDevice) {
+    void VulkanRenderer::drawFrameTemp(VulkanDevice& vulkanDevice, VulkanSwapchain& vulkanSwapchain) {
+        auto currentFrame = vulkanSwapchain.swapchainFrames()[m_currentFrame];
         vk::Result result;
         try {
-            result = vulkanDevice.logicalDevice().waitForFences(1, &m_vkInFlightFences[m_currentFrame], VK_TRUE, UINT64_MAX);
+            result = vulkanDevice.logicalDevice().waitForFences(1, &currentFrame.inFlightFence, VK_TRUE, UINT64_MAX);
         } catch (vk::SystemError err) {
             std::string errMsg = "Failed to wait for fence: ";
             GN_CORE_ERROR("{}{}", errMsg, err.what());
@@ -77,7 +78,7 @@ namespace Genesis {
 
         uint32_t imageIndex;
         try {
-            auto result = vulkanDevice.logicalDevice().acquireNextImageKHR(m_vulkanSwapchain.swapchain(), UINT64_MAX, m_vkImageAvailableSemaphores[m_currentFrame], nullptr);
+            auto result = vulkanDevice.logicalDevice().acquireNextImageKHR(m_vulkanSwapchain.swapchain(), UINT64_MAX, currentFrame.imageAvailableSemaphore, nullptr);
             if (result.result == vk::Result::eErrorOutOfDateKHR) {
                 m_vulkanSwapchain.recreateSwapChain(m_vulkanDevice, m_vkSurface, m_window, m_vulkanPipeline.renderPass(), m_vulkanRenderLoop.commandPool());
                 return;
@@ -100,34 +101,33 @@ namespace Genesis {
 
         // Only reset the fence if we are submitting work
         try {
-            result = vulkanDevice.logicalDevice().resetFences(1, &m_vkInFlightFences[m_currentFrame]);
+            result = vulkanDevice.logicalDevice().resetFences(1, &currentFrame.inFlightFence);
         } catch (vk::SystemError err) {
             std::string errMsg = "Failed to reset fence: ";
             GN_CORE_ERROR("{}{}", errMsg, err.what());
             throw std::runtime_error(errMsg + err.what());
         }
 
-        m_vulkanSwapchain.commandbuffers()[m_currentFrame].reset();
-        // vkResetCommandBuffer(m_vulkanSwapchain.commandbuffers()[m_currentFrame], 0);
-        recordCommandBuffer(m_vulkanSwapchain.commandbuffers()[m_currentFrame], imageIndex);
+        m_vulkanSwapchain.swapchainFrames()[m_currentFrame].commandBuffer.reset();
+        recordCommandBuffer(m_vulkanSwapchain.swapchainFrames()[m_currentFrame].commandBuffer, imageIndex);
 
         vk::SubmitInfo submitInfo = {};
 
-        vk::Semaphore waitSemaphores[] = {m_vkImageAvailableSemaphores[m_currentFrame]};
+        vk::Semaphore waitSemaphores[] = {currentFrame.imageAvailableSemaphore};
         vk::PipelineStageFlags waitStages[] = {vk::PipelineStageFlagBits::eColorAttachmentOutput};
         submitInfo.waitSemaphoreCount = 1;
         submitInfo.pWaitSemaphores = waitSemaphores;
         submitInfo.pWaitDstStageMask = waitStages;
 
         submitInfo.commandBufferCount = 1;
-        submitInfo.pCommandBuffers = &m_vulkanSwapchain.commandbuffers()[m_currentFrame];
+        submitInfo.pCommandBuffers = &m_vulkanSwapchain.swapchainFrames()[m_currentFrame].commandBuffer;
 
-        vk::Semaphore signalSemaphores[] = {m_vkRenderFinishedSemaphores[m_currentFrame]};
+        vk::Semaphore signalSemaphores[] = {currentFrame.renderFinishedSemaphore};
         submitInfo.signalSemaphoreCount = 1;
         submitInfo.pSignalSemaphores = signalSemaphores;
 
         try {
-            vulkanDevice.graphicsQueue().submit(submitInfo, m_vkInFlightFences[m_currentFrame]);
+            vulkanDevice.graphicsQueue().submit(submitInfo, currentFrame.inFlightFence);
         } catch (vk::SystemError err) {
             std::string errMsg = "Failed to submit draw command buffer: ";
             GN_CORE_ERROR("{}{}", errMsg, err.what());
@@ -171,9 +171,9 @@ namespace Genesis {
         m_vulkanSwapchain.cleanupSwapChain(m_vulkanDevice);
 
         for (size_t i = 0; i < m_maxFramesInFlight; i++) {
-            m_vulkanDevice.logicalDevice().destroySemaphore(m_vkImageAvailableSemaphores[i]);
-            m_vulkanDevice.logicalDevice().destroySemaphore(m_vkRenderFinishedSemaphores[i]);
-            m_vulkanDevice.logicalDevice().destroyFence(m_vkInFlightFences[i]);
+            m_vulkanDevice.logicalDevice().destroySemaphore(m_vulkanSwapchain.swapchainFrames()[i].imageAvailableSemaphore);
+            m_vulkanDevice.logicalDevice().destroySemaphore(m_vulkanSwapchain.swapchainFrames()[i].renderFinishedSemaphore);
+            m_vulkanDevice.logicalDevice().destroyFence(m_vulkanSwapchain.swapchainFrames()[i].inFlightFence);
         }
 
         for (size_t i = 0; i < m_maxFramesInFlight; i++) {
@@ -598,7 +598,7 @@ namespace Genesis {
 
         vk::RenderPassBeginInfo renderPassInfo = {};
         renderPassInfo.renderPass = m_vulkanPipeline.renderPass();
-        renderPassInfo.framebuffer = m_vulkanSwapchain.framebuffers()[imageIndex];
+        renderPassInfo.framebuffer = m_vulkanSwapchain.swapchainFrames()[imageIndex].framebuffer;
         renderPassInfo.renderArea.offset.x = 0;
         renderPassInfo.renderArea.offset.y = 0;
         renderPassInfo.renderArea.extent = m_vulkanSwapchain.extent();
@@ -645,46 +645,6 @@ namespace Genesis {
             commandBuffer.end();
         } catch (vk::SystemError err) {
             std::string errMsg = "Failed to record command buffer: ";
-            GN_CORE_ERROR("{}{}", errMsg, err.what());
-            throw std::runtime_error(errMsg + err.what());
-        }
-    }
-
-    void VulkanRenderer::createSyncObjects(VulkanDevice& vulkanDevice) {
-        m_vkImageAvailableSemaphores.resize(m_maxFramesInFlight);
-        m_vkRenderFinishedSemaphores.resize(m_maxFramesInFlight);
-        m_vkInFlightFences.resize(m_maxFramesInFlight);
-
-        for (size_t i = 0; i < m_maxFramesInFlight; i++) {
-            m_vkImageAvailableSemaphores[i] = createSemaphore(vulkanDevice);
-            m_vkRenderFinishedSemaphores[i] = createSemaphore(vulkanDevice);
-            m_vkInFlightFences[i] = createFence(vulkanDevice);
-        }
-
-        GN_CORE_INFO("Vulkan semaphores and fences created successfully.");
-    }
-
-    vk::Semaphore VulkanRenderer::createSemaphore(VulkanDevice& vulkanDevice) {
-        vk::SemaphoreCreateInfo semaphoreInfo = {};
-        semaphoreInfo.flags = vk::SemaphoreCreateFlags();
-
-        try {
-            return vulkanDevice.logicalDevice().createSemaphore(semaphoreInfo);
-        } catch (vk::SystemError err) {
-            std::string errMsg = "Failed to create semaphore: ";
-            GN_CORE_ERROR("{}{}", errMsg, err.what());
-            throw std::runtime_error(errMsg + err.what());
-        }
-    }
-
-    vk::Fence VulkanRenderer::createFence(VulkanDevice& vulkanDevice) {
-        vk::FenceCreateInfo fenceInfo = {};
-        fenceInfo.flags = vk::FenceCreateFlags() | vk::FenceCreateFlagBits::eSignaled;
-
-        try {
-            return vulkanDevice.logicalDevice().createFence(fenceInfo);
-        } catch (vk::SystemError err) {
-            std::string errMsg = "Failed to create fence: ";
             GN_CORE_ERROR("{}{}", errMsg, err.what());
             throw std::runtime_error(errMsg + err.what());
         }

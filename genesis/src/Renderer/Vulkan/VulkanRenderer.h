@@ -45,11 +45,8 @@ namespace Genesis {
             void createTextureSampler();
             void copyBufferToImage(vk::Buffer buffer, vk::Image image, uint32_t width, uint32_t height);
 
-            void drawFrameTemp(VulkanDevice& vulkanDevice);
+            void drawFrameTemp(VulkanDevice& vulkanDevice, VulkanSwapchain& vulkanSwapchain);
             void recordCommandBuffer(vk::CommandBuffer commandBuffer, uint32_t imageIndex);
-            void createSyncObjects(VulkanDevice& vulkanDevice);
-            vk::Semaphore createSemaphore(VulkanDevice& vulkanDevice);
-            vk::Fence createFence(VulkanDevice& vulkanDevice);
 
             void loadModel();
             void createVertexBuffer();
@@ -94,10 +91,6 @@ namespace Genesis {
             std::vector<void*> m_vkUniformBuffersMapped;
 
             vk::DescriptorPool m_vkDescriptorPool;
-
-            std::vector<vk::Semaphore> m_vkImageAvailableSemaphores;
-            std::vector<vk::Semaphore> m_vkRenderFinishedSemaphores;
-            std::vector<vk::Fence> m_vkInFlightFences;
 
             uint32_t m_maxFramesInFlight;
             uint32_t m_currentFrame = 0;

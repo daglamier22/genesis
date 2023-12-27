@@ -67,10 +67,10 @@ namespace Genesis {
 
     void VulkanSwapchain::createImageViews(VulkanDevice& vulkanDevice) {
         std::vector<vk::Image> images = vulkanDevice.logicalDevice().getSwapchainImagesKHR(m_vkSwapchain);
-        m_swapchainImages.resize(images.size());
+        m_swapchainFrames.resize(images.size());
         for (size_t i = 0; i < images.size(); ++i) {
-            m_swapchainImages[i].setImage(images[i]);
-            m_swapchainImages[i].createImageView(vulkanDevice, images[i], m_vkSwapchainImageFormat, vk::ImageAspectFlagBits::eColor, 1);
+            m_swapchainFrames[i].vulkanImage.setImage(images[i]);
+            m_swapchainFrames[i].vulkanImage.createImageView(vulkanDevice, images[i], m_vkSwapchainImageFormat, vk::ImageAspectFlagBits::eColor, 1);
         }
     }
 
@@ -124,10 +124,8 @@ namespace Genesis {
     }
 
     void VulkanSwapchain::createFramebuffers(VulkanDevice& vulkanDevice, vk::RenderPass renderPass) {
-        m_vkSwapchainFramebuffers.resize(m_swapchainImages.size());
-
-        for (size_t i = 0; i < m_swapchainImages.size(); i++) {
-            std::array<vk::ImageView, 3> attachments = {m_colorImage.imageView(), m_depthImage.imageView(), m_swapchainImages[i].imageView()};
+        for (size_t i = 0; i < m_swapchainFrames.size(); i++) {
+            std::array<vk::ImageView, 3> attachments = {m_colorImage.imageView(), m_depthImage.imageView(), m_swapchainFrames[i].vulkanImage.imageView()};
 
             vk::FramebufferCreateInfo framebufferInfo = {};
             framebufferInfo.renderPass = renderPass;
@@ -138,7 +136,7 @@ namespace Genesis {
             framebufferInfo.layers = 1;
 
             try {
-                m_vkSwapchainFramebuffers[i] = vulkanDevice.logicalDevice().createFramebuffer(framebufferInfo);
+                m_swapchainFrames[i].framebuffer = vulkanDevice.logicalDevice().createFramebuffer(framebufferInfo);
             } catch (vk::SystemError err) {
                 std::string errMsg = "Failed to create framebuffer: ";
                 GN_CORE_ERROR("{}{}", errMsg, err.what());
@@ -150,15 +148,16 @@ namespace Genesis {
     }
 
     void VulkanSwapchain::createCommandBuffers(VulkanDevice& vulkanDevice, vk::CommandPool& commandPool) {
-        m_vkSwapchainCommandBuffers.resize(m_swapchainImages.size());
-
         vk::CommandBufferAllocateInfo allocInfo = {};
         allocInfo.commandPool = commandPool;
         allocInfo.level = vk::CommandBufferLevel::ePrimary;
-        allocInfo.commandBufferCount = m_swapchainImages.size();
+        allocInfo.commandBufferCount = m_swapchainFrames.size();
 
         try {
-            m_vkSwapchainCommandBuffers = vulkanDevice.logicalDevice().allocateCommandBuffers(allocInfo);
+            auto commandBuffers = vulkanDevice.logicalDevice().allocateCommandBuffers(allocInfo);
+            for (auto i = 0; i < m_swapchainFrames.size(); ++i) {
+                m_swapchainFrames[i].commandBuffer = commandBuffers[i];
+            }
         } catch (vk::SystemError err) {
             std::string errMsg = "Failed to allocate command buffers: ";
             GN_CORE_ERROR("{}{}", errMsg, err.what());
@@ -166,6 +165,42 @@ namespace Genesis {
         }
 
         GN_CORE_INFO("Vulkan command buffer created successfully.");
+    }
+
+    void VulkanSwapchain::createSyncObjects(VulkanDevice& vulkanDevice) {
+        for (size_t i = 0; i < m_swapchainFrames.size(); i++) {
+            m_swapchainFrames[i].imageAvailableSemaphore = createSemaphore(vulkanDevice);
+            m_swapchainFrames[i].renderFinishedSemaphore = createSemaphore(vulkanDevice);
+            m_swapchainFrames[i].inFlightFence = createFence(vulkanDevice);
+        }
+
+        GN_CORE_INFO("Vulkan semaphores and fences created successfully.");
+    }
+
+    vk::Semaphore VulkanSwapchain::createSemaphore(VulkanDevice& vulkanDevice) {
+        vk::SemaphoreCreateInfo semaphoreInfo = {};
+        semaphoreInfo.flags = vk::SemaphoreCreateFlags();
+
+        try {
+            return vulkanDevice.logicalDevice().createSemaphore(semaphoreInfo);
+        } catch (vk::SystemError err) {
+            std::string errMsg = "Failed to create semaphore: ";
+            GN_CORE_ERROR("{}{}", errMsg, err.what());
+            throw std::runtime_error(errMsg + err.what());
+        }
+    }
+
+    vk::Fence VulkanSwapchain::createFence(VulkanDevice& vulkanDevice) {
+        vk::FenceCreateInfo fenceInfo = {};
+        fenceInfo.flags = vk::FenceCreateFlags() | vk::FenceCreateFlagBits::eSignaled;
+
+        try {
+            return vulkanDevice.logicalDevice().createFence(fenceInfo);
+        } catch (vk::SystemError err) {
+            std::string errMsg = "Failed to create fence: ";
+            GN_CORE_ERROR("{}{}", errMsg, err.what());
+            throw std::runtime_error(errMsg + err.what());
+        }
     }
 
     vk::SurfaceFormatKHR VulkanSwapchain::chooseSwapSurfaceFormat(const std::vector<vk::SurfaceFormatKHR>& availableFormats) {
@@ -237,12 +272,14 @@ namespace Genesis {
         m_colorImage.destroyImage(vulkanDevice);
         m_colorImage.freeImageMemory(vulkanDevice);
 
-        for (auto framebuffer : m_vkSwapchainFramebuffers) {
-            vulkanDevice.logicalDevice().destroyFramebuffer(framebuffer);
-        }
+        // for (auto framebuffer : m_vkSwapchainFramebuffers) {
+        // }
 
-        for (size_t i = 0; i < m_swapchainImages.size(); ++i) {
-            m_swapchainImages[i].destroyImageView(vulkanDevice);
+        // for (size_t i = 0; i < m_swapchainImages.size(); ++i) {
+        // }
+        for (auto frame : m_swapchainFrames) {
+            vulkanDevice.logicalDevice().destroyFramebuffer(frame.framebuffer);
+            frame.vulkanImage.destroyImageView(vulkanDevice);
         }
 
         vulkanDevice.logicalDevice().destroySwapchainKHR(m_vkSwapchain);
