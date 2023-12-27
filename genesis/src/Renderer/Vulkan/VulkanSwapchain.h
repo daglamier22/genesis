@@ -15,7 +15,9 @@ namespace Genesis {
             VulkanSwapchain& operator=(const VulkanSwapchain&) = delete;
 
             vk::SwapchainKHR const& swapchain() const { return m_vkSwapchain; }
+            std::vector<VulkanImage> const& swapchainImages() { return m_swapchainImages; }
             std::vector<vk::Framebuffer> const& framebuffers() const { return m_vkSwapchainFramebuffers; }
+            std::vector<vk::CommandBuffer> const& commandbuffers() const { return m_vkSwapchainCommandBuffers; }
             vk::Format const& format() const { return m_vkSwapchainImageFormat; }
             vk::Extent2D const& extent() const { return m_vkSwapchainExtent; }
             vk::Format const& depthFormat() const { return m_vkDepthFormat; }
@@ -25,6 +27,7 @@ namespace Genesis {
             void createColorResources(VulkanDevice& vulkanDevice);
             void createDepthResources(VulkanDevice& vulkanDevice, vk::CommandPool commandPool);
             void createFramebuffers(VulkanDevice& vulkanDevice, vk::RenderPass renderPass);
+            void createCommandBuffers(VulkanDevice& vulkanDevice, vk::CommandPool& commandPool);
             void recreateSwapChain(VulkanDevice& vulkanDevice,
                                    const vk::SurfaceKHR& surface,
                                    std::shared_ptr<Window> window,
@@ -43,10 +46,13 @@ namespace Genesis {
             vk::Extent2D chooseSwapExtent(const vk::SurfaceCapabilitiesKHR& capabilities, std::shared_ptr<Window> window);
 
             vk::SwapchainKHR m_vkSwapchain;
-            std::vector<VulkanImage> m_swapchainImages;
-            std::vector<vk::Framebuffer> m_vkSwapchainFramebuffers;
             vk::Format m_vkSwapchainImageFormat;
             vk::Extent2D m_vkSwapchainExtent;
+
+            // 1 Image, ImageView, Framebuffer, and CommandBuffer for every frame
+            std::vector<VulkanImage> m_swapchainImages;
+            std::vector<vk::Framebuffer> m_vkSwapchainFramebuffers;
+            std::vector<vk::CommandBuffer> m_vkSwapchainCommandBuffers;
 
             VulkanImage m_colorImage;
             VulkanImage m_depthImage;

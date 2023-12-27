@@ -149,6 +149,25 @@ namespace Genesis {
         GN_CORE_INFO("Vulkan framebuffers created successfully.");
     }
 
+    void VulkanSwapchain::createCommandBuffers(VulkanDevice& vulkanDevice, vk::CommandPool& commandPool) {
+        m_vkSwapchainCommandBuffers.resize(m_swapchainImages.size());
+
+        vk::CommandBufferAllocateInfo allocInfo = {};
+        allocInfo.commandPool = commandPool;
+        allocInfo.level = vk::CommandBufferLevel::ePrimary;
+        allocInfo.commandBufferCount = m_swapchainImages.size();
+
+        try {
+            m_vkSwapchainCommandBuffers = vulkanDevice.logicalDevice().allocateCommandBuffers(allocInfo);
+        } catch (vk::SystemError err) {
+            std::string errMsg = "Failed to allocate command buffers: ";
+            GN_CORE_ERROR("{}{}", errMsg, err.what());
+            throw std::runtime_error(errMsg + err.what());
+        }
+
+        GN_CORE_INFO("Vulkan command buffer created successfully.");
+    }
+
     vk::SurfaceFormatKHR VulkanSwapchain::chooseSwapSurfaceFormat(const std::vector<vk::SurfaceFormatKHR>& availableFormats) {
         for (const auto& availableFormat : availableFormats) {
             if (availableFormat.format == vk::Format::eB8G8R8A8Srgb && availableFormat.colorSpace == vk::ColorSpaceKHR::eSrgbNonlinear) {

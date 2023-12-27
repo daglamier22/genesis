@@ -41,11 +41,9 @@ namespace Genesis {
         m_vulkanPipeline.createRenderPass(m_vulkanDevice, m_vulkanSwapchain);
         createDescriptorSetLayout(m_vulkanDevice);
         m_vulkanPipeline.createGraphicsPipeline(m_vulkanDevice, m_vulkanSwapchain, m_vkDescriptorSetLayout);
-        if (!createCommandPool()) {
-            return;
-        }
+        m_vulkanRenderLoop.createCommandPool(m_vulkanDevice, m_vkSurface);
         m_vulkanSwapchain.createColorResources(m_vulkanDevice);
-        m_vulkanSwapchain.createDepthResources(m_vulkanDevice, m_vkCommandPool);
+        m_vulkanSwapchain.createDepthResources(m_vulkanDevice, m_vulkanRenderLoop.commandPool());
         m_vulkanSwapchain.createFramebuffers(m_vulkanDevice, m_vulkanPipeline.renderPass());
         if (!createTextureImage()) {
             return;
@@ -343,24 +341,7 @@ namespace Genesis {
         GN_CORE_INFO("Vulkan descriptor set layour created successfully.");
     }
 
-    bool VulkanRenderer::createCommandPool() {
-        QueueFamilyIndices queueFamilyIndices = m_vulkanDevice.findQueueFamilies(m_vulkanDevice.physicalDevice(), m_vkSurface);
-
-        VkCommandPoolCreateInfo poolInfo{};
-        poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-        poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-        poolInfo.queueFamilyIndex = queueFamilyIndices.graphicsFamily.value();
-
-        if (vkCreateCommandPool(m_vulkanDevice.logicalDevice(), &poolInfo, nullptr, &m_vkCommandPool) != VK_SUCCESS) {
-            GN_CORE_ERROR("Failed to create command pool.");
-            return false;
-        }
-
-        GN_CORE_INFO("Vulkan command pool created successfully.");
-        return true;
-    }
-
-    bool VulkanRenderer::createTextureImage() {
+    void VulkanRenderer::createTextureImage() {
         int texWidth, texHeight, texChannels;
         stbi_uc* pixels = stbi_load(TEXTURE_PATH.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
         VkDeviceSize imageSize = texWidth * texHeight * 4;

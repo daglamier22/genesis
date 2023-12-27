@@ -39,7 +39,6 @@ namespace Genesis {
             void createSurface();
 
             void createDescriptorSetLayout(VulkanDevice& vulkanDevice);
-            bool createCommandPool();
 
             bool createTextureImage();
             bool generateMipmaps(VkImage image, VkFormat imageFormat, int32_t texWidth, int32_t texHeight, uint32_t mipLevels);
