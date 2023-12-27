@@ -43,7 +43,7 @@ namespace Genesis {
                                    std::shared_ptr<Window> window,
                                    vk::RenderPass renderpass,
                                    vk::CommandPool commandPool);
-            void cleanupSwapChain(VulkanDevice& vulkanDevice);
+            void cleanupSwapChain(VulkanDevice& vulkanDevice, vk::CommandPool commandPool);
             vk::Format findSupportedFormat(VulkanDevice& vulkanDevice,
                                            const std::vector<vk::Format>& candidates,
                                            vk::ImageTiling tiling,

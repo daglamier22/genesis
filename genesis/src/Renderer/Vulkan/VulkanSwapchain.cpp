@@ -252,18 +252,20 @@ namespace Genesis {
 
         vulkanDevice.logicalDevice().waitIdle();
 
-        cleanupSwapChain(vulkanDevice);
+        cleanupSwapChain(vulkanDevice, commandPool);
 
         createSwapChain(vulkanDevice, surface, window);
         createImageViews(vulkanDevice);
         createColorResources(vulkanDevice);
         createDepthResources(vulkanDevice, commandPool);
         createFramebuffers(vulkanDevice, renderpass);
+        createCommandBuffers(vulkanDevice, commandPool);
+        createSyncObjects(vulkanDevice);
 
         GN_CORE_INFO("Vulkan swapchain recreated.");
     }
 
-    void VulkanSwapchain::cleanupSwapChain(VulkanDevice& vulkanDevice) {
+    void VulkanSwapchain::cleanupSwapChain(VulkanDevice& vulkanDevice, vk::CommandPool commandPool) {
         m_depthImage.destroyImageView(vulkanDevice);
         m_depthImage.destroyImage(vulkanDevice);
         m_depthImage.freeImageMemory(vulkanDevice);
@@ -272,12 +274,11 @@ namespace Genesis {
         m_colorImage.destroyImage(vulkanDevice);
         m_colorImage.freeImageMemory(vulkanDevice);
 
-        // for (auto framebuffer : m_vkSwapchainFramebuffers) {
-        // }
-
-        // for (size_t i = 0; i < m_swapchainImages.size(); ++i) {
-        // }
         for (auto frame : m_swapchainFrames) {
+            vulkanDevice.logicalDevice().destroyFence(frame.inFlightFence);
+            vulkanDevice.logicalDevice().destroySemaphore(frame.renderFinishedSemaphore);
+            vulkanDevice.logicalDevice().destroySemaphore(frame.imageAvailableSemaphore);
+            vulkanDevice.logicalDevice().freeCommandBuffers(commandPool, frame.commandBuffer);
             vulkanDevice.logicalDevice().destroyFramebuffer(frame.framebuffer);
             frame.vulkanImage.destroyImageView(vulkanDevice);
         }

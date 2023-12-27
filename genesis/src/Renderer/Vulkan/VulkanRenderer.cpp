@@ -68,13 +68,7 @@ namespace Genesis {
     void VulkanRenderer::shutdown() {
         EventSystem::unregisterEvent(EventType::WindowResize, this, GN_BIND_EVENT_FN(VulkanRenderer::onResizeEvent));
 
-        m_vulkanSwapchain.cleanupSwapChain(m_vulkanDevice);
-
-        for (size_t i = 0; i < m_maxFramesInFlight; i++) {
-            m_vulkanDevice.logicalDevice().destroySemaphore(m_vulkanSwapchain.swapchainFrames()[i].imageAvailableSemaphore);
-            m_vulkanDevice.logicalDevice().destroySemaphore(m_vulkanSwapchain.swapchainFrames()[i].renderFinishedSemaphore);
-            m_vulkanDevice.logicalDevice().destroyFence(m_vulkanSwapchain.swapchainFrames()[i].inFlightFence);
-        }
+        m_vulkanSwapchain.cleanupSwapChain(m_vulkanDevice, m_vkCommandPool);
 
         for (size_t i = 0; i < m_maxFramesInFlight; i++) {
             m_vulkanDevice.logicalDevice().destroyBuffer(m_vkUniformBuffers[i]);
@@ -281,23 +275,15 @@ namespace Genesis {
         uint32_t imageIndex;
         try {
             auto result = m_vulkanDevice.logicalDevice().acquireNextImageKHR(m_vulkanSwapchain.swapchain(), UINT64_MAX, currentFrame.imageAvailableSemaphore, nullptr);
-            if (result.result == vk::Result::eErrorOutOfDateKHR) {
-                m_vulkanSwapchain.recreateSwapChain(m_vulkanDevice, m_vkSurface, m_window, m_vulkanPipeline.renderPass(), m_vkCommandPool);
-                return;
-            }
             imageIndex = result.value;
+        } catch (vk::OutOfDateKHRError err) {
+            m_vulkanSwapchain.recreateSwapChain(m_vulkanDevice, m_vkSurface, m_window, m_vulkanPipeline.renderPass(), m_vkCommandPool);
+            return;
         } catch (vk::SystemError err) {
             std::string errMsg = "Failed to aquire swap chain image: ";
             GN_CORE_ERROR("{}{}", errMsg, err.what());
             throw std::runtime_error(errMsg + err.what());
         }
-        // VkResult result = vkAcquireNextImageKHR(m_vulkanDevice.logicalDevice(), m_vulkanSwapchain.swapchain(), UINT64_MAX, m_vkImageAvailableSemaphores[m_currentFrame], VK_NULL_HANDLE, &imageIndex);
-        // if (result == VK_ERROR_OUT_OF_DATE_KHR) {
-        //     return true;
-        // } else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
-        //     GN_CORE_ERROR("Failed to acquire swap chain image.");
-        //     return false;
-        // }
 
         updateUniformBuffer(m_currentFrame);
 
@@ -311,7 +297,7 @@ namespace Genesis {
         }
 
         m_vulkanSwapchain.swapchainFrames()[m_currentFrame].commandBuffer.reset();
-        recordCommandBuffer(currentFrame.commandBuffer, currentFrame.framebuffer);
+        recordCommandBuffer(currentFrame.commandBuffer, imageIndex);
 
         vk::SubmitInfo submitInfo = {};
 
@@ -347,27 +333,23 @@ namespace Genesis {
 
         try {
             auto result = m_vulkanDevice.presentQueue().presentKHR(presentInfo);
-            if (result == vk::Result::eErrorOutOfDateKHR || result == vk::Result::eSuboptimalKHR || m_framebufferResized) {
+            if (result == vk::Result::eSuboptimalKHR || m_framebufferResized) {
                 m_framebufferResized = false;
                 m_vulkanSwapchain.recreateSwapChain(m_vulkanDevice, m_vkSurface, m_window, m_vulkanPipeline.renderPass(), m_vkCommandPool);
             }
+        } catch (vk::OutOfDateKHRError err) {
+            m_framebufferResized = false;
+            m_vulkanSwapchain.recreateSwapChain(m_vulkanDevice, m_vkSurface, m_window, m_vulkanPipeline.renderPass(), m_vkCommandPool);
         } catch (vk::SystemError err) {
             std::string errMsg = "Failed to present swap chain image: ";
             GN_CORE_ERROR("{}{}", errMsg, err.what());
             throw std::runtime_error(errMsg + err.what());
         }
-        // result = vkQueuePresentKHR(m_vulkanDevice.presentQueue(), &presentInfo);
-        // if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || m_framebufferResized) {
-        //     m_framebufferResized = false;
-        // } else if (result != VK_SUCCESS) {
-        //     GN_CORE_ERROR("Failed to present swap chain image.");
-        //     return false;
-        // }
 
         m_currentFrame = (m_currentFrame + 1) % m_vulkanSwapchain.swapchainFrames().size();
     }
 
-    void VulkanRenderer::recordCommandBuffer(vk::CommandBuffer commandBuffer, vk::Framebuffer framebuffer) {
+    void VulkanRenderer::recordCommandBuffer(vk::CommandBuffer commandBuffer, uint32_t imageIndex) {
         vk::CommandBufferBeginInfo beginInfo = {};
         beginInfo.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit;
 
@@ -381,7 +363,7 @@ namespace Genesis {
 
         vk::RenderPassBeginInfo renderPassInfo = {};
         renderPassInfo.renderPass = m_vulkanPipeline.renderPass();
-        renderPassInfo.framebuffer = framebuffer;
+        renderPassInfo.framebuffer = m_vulkanSwapchain.swapchainFrames()[imageIndex].framebuffer;
         renderPassInfo.renderArea.offset.x = 0;
         renderPassInfo.renderArea.offset.y = 0;
         renderPassInfo.renderArea.extent = m_vulkanSwapchain.extent();

@@ -39,7 +39,7 @@ namespace Genesis {
             void createCommandPool();
             void createCommandBuffers();
             void renderFrame();
-            void recordCommandBuffer(vk::CommandBuffer commandBuffer, vk::Framebuffer framebuffer);
+            void recordCommandBuffer(vk::CommandBuffer commandBuffer, uint32_t imageIndex);
 
             void createDescriptorSetLayout(VulkanDevice& vulkanDevice);
 
