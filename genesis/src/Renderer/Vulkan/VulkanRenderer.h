@@ -5,12 +5,11 @@
 #include "Core/Renderer.h"
 #include "VulkanDevice.h"
 #include "VulkanPipeline.h"
+#include "VulkanRenderLoop.h"
 #include "VulkanSwapchain.h"
 #include "VulkanTypes.h"
 
 namespace Genesis {
-    const int MAX_FRAMES_IN_FLIGHT = 2;
-
     const std::string MODEL_PATH = "assets/models/viking_room.obj";
     const std::string TEXTURE_PATH = "assets/textures/viking_room.png";
 
@@ -40,31 +39,33 @@ namespace Genesis {
 
             void createDescriptorSetLayout(VulkanDevice& vulkanDevice);
 
-            bool createTextureImage();
-            bool generateMipmaps(VkImage image, VkFormat imageFormat, int32_t texWidth, int32_t texHeight, uint32_t mipLevels);
+            void createTextureImage();
+            void generateMipmaps(vk::Image image, vk::Format imageFormat, int32_t texWidth, int32_t texHeight, uint32_t mipLevels);
             void createTextureImageView();
-            bool createTextureSampler();
-            void copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height);
+            void createTextureSampler();
+            void copyBufferToImage(vk::Buffer buffer, vk::Image image, uint32_t width, uint32_t height);
 
-            bool createCommandBuffers();
-            bool recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex);
-            bool createSyncObjects();
+            void drawFrameTemp(VulkanDevice& vulkanDevice);
+            void recordCommandBuffer(vk::CommandBuffer commandBuffer, uint32_t imageIndex);
+            void createSyncObjects(VulkanDevice& vulkanDevice);
+            vk::Semaphore createSemaphore(VulkanDevice& vulkanDevice);
+            vk::Fence createFence(VulkanDevice& vulkanDevice);
 
-            bool loadModel();
-            bool createVertexBuffer();
-            bool createIndexBuffer();
-            bool createUniformBuffers();
-            bool createDescriptorPool();
-            bool createDescriptorSets();
+            void loadModel();
+            void createVertexBuffer();
+            void createIndexBuffer();
+            void createUniformBuffers();
+            void createDescriptorPool();
+            void createDescriptorSets();
             void updateUniformBuffer(uint32_t currentImage);
-            bool createBuffer(VkDeviceSize size,
+            void createBuffer(vk::DeviceSize size,
                               vk::BufferUsageFlags usage,
                               vk::MemoryPropertyFlags properties,
                               vk::Buffer& buffer,
-                              VkDeviceMemory& bufferMemory);
-            VkCommandBuffer beginSingleTimeCommands();
-            void endSingleTimeCommands(VkCommandBuffer commandBuffer);
-            void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
+                              vk::DeviceMemory& bufferMemory);
+            vk::CommandBuffer beginSingleTimeCommands();
+            void endSingleTimeCommands(vk::CommandBuffer commandBuffer);
+            void copyBuffer(vk::Buffer srcBuffer, vk::Buffer dstBuffer, vk::DeviceSize size);
 
             vk::Instance m_vkInstance{nullptr};
             vk::SurfaceKHR m_vkSurface;
@@ -72,34 +73,33 @@ namespace Genesis {
             VulkanDevice m_vulkanDevice;
             VulkanSwapchain m_vulkanSwapchain;
             VulkanPipeline m_vulkanPipeline;
+            VulkanRenderLoop m_vulkanRenderLoop;
 
             vk::DescriptorSetLayout m_vkDescriptorSetLayout;
-            std::vector<VkDescriptorSet> m_vkDescriptorSets;
-
-            VkCommandPool m_vkCommandPool;
-            std::vector<VkCommandBuffer> m_vkCommandBuffers;
+            std::vector<vk::DescriptorSet> m_vkDescriptorSets;
 
             uint32_t m_vkMipLevels;
             VulkanImage m_textureImage;
-            VkSampler m_vkTextureSampler;
+            vk::Sampler m_vkTextureSampler;
 
             std::vector<Vertex> m_vertices;
             std::vector<uint32_t> m_indices;
             vk::Buffer m_vkVertexBuffer;
-            VkDeviceMemory m_vkVertexBufferMemory;
+            vk::DeviceMemory m_vkVertexBufferMemory;
             vk::Buffer m_vkIndexBuffer;
-            VkDeviceMemory m_vkIndexBufferMemory;
+            vk::DeviceMemory m_vkIndexBufferMemory;
 
             std::vector<vk::Buffer> m_vkUniformBuffers;
-            std::vector<VkDeviceMemory> m_vkUniformBuffersMemory;
+            std::vector<vk::DeviceMemory> m_vkUniformBuffersMemory;
             std::vector<void*> m_vkUniformBuffersMapped;
 
-            VkDescriptorPool m_vkDescriptorPool;
+            vk::DescriptorPool m_vkDescriptorPool;
 
-            std::vector<VkSemaphore> m_vkImageAvailableSemaphores;
-            std::vector<VkSemaphore> m_vkRenderFinishedSemaphores;
-            std::vector<VkFence> m_vkInFlightFences;
+            std::vector<vk::Semaphore> m_vkImageAvailableSemaphores;
+            std::vector<vk::Semaphore> m_vkRenderFinishedSemaphores;
+            std::vector<vk::Fence> m_vkInFlightFences;
 
+            uint32_t m_maxFramesInFlight;
             uint32_t m_currentFrame = 0;
             bool m_framebufferResized = false;
 

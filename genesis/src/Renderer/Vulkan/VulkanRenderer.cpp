@@ -38,6 +38,7 @@ namespace Genesis {
         m_vulkanDevice.createLogicalDevice(m_vkSurface);
         m_vulkanSwapchain.createSwapChain(m_vulkanDevice, m_vkSurface, m_window);
         m_vulkanSwapchain.createImageViews(m_vulkanDevice);
+        m_maxFramesInFlight = static_cast<uint32_t>(m_vulkanSwapchain.swapchainImages().size());
         m_vulkanPipeline.createRenderPass(m_vulkanDevice, m_vulkanSwapchain);
         createDescriptorSetLayout(m_vulkanDevice);
         m_vulkanPipeline.createGraphicsPipeline(m_vulkanDevice, m_vulkanSwapchain, m_vkDescriptorSetLayout);
@@ -45,106 +46,123 @@ namespace Genesis {
         m_vulkanSwapchain.createColorResources(m_vulkanDevice);
         m_vulkanSwapchain.createDepthResources(m_vulkanDevice, m_vulkanRenderLoop.commandPool());
         m_vulkanSwapchain.createFramebuffers(m_vulkanDevice, m_vulkanPipeline.renderPass());
-        if (!createTextureImage()) {
-            return;
-        }
+        createTextureImage();
         createTextureImageView();
-        if (!createTextureSampler()) {
-            return;
-        }
-        if (!loadModel()) {
-            return;
-        }
-        if (!createVertexBuffer()) {
-            return;
-        }
-        if (!createIndexBuffer()) {
-            return;
-        }
-        if (!createUniformBuffers()) {
-            return;
-        }
-        if (!createDescriptorPool()) {
-            return;
-        }
-        if (!createDescriptorSets()) {
-            return;
-        }
-        if (!createCommandBuffers()) {
-            return;
-        }
-        if (!createSyncObjects()) {
-            return;
-        }
+        createTextureSampler();
+        loadModel();
+        createVertexBuffer();
+        createIndexBuffer();
+        createUniformBuffers();
+        createDescriptorPool();
+        createDescriptorSets();
+        m_vulkanRenderLoop.createCommandBuffers(m_vulkanDevice, m_vulkanSwapchain);
+        createSyncObjects(m_vulkanDevice);
         EventSystem::registerEvent(EventType::WindowResize, this, GN_BIND_EVENT_FN(VulkanRenderer::onResizeEvent));
     }
 
     bool VulkanRenderer::drawFrame() {
-        vkWaitForFences(m_vulkanDevice.logicalDevice(), 1, &m_vkInFlightFences[m_currentFrame], VK_TRUE, UINT64_MAX);
+        drawFrameTemp(m_vulkanDevice);
+        return true;
+    }
+
+    void VulkanRenderer::drawFrameTemp(VulkanDevice& vulkanDevice) {
+        vk::Result result;
+        try {
+            result = vulkanDevice.logicalDevice().waitForFences(1, &m_vkInFlightFences[m_currentFrame], VK_TRUE, UINT64_MAX);
+        } catch (vk::SystemError err) {
+            std::string errMsg = "Failed to wait for fence: ";
+            GN_CORE_ERROR("{}{}", errMsg, err.what());
+            throw std::runtime_error(errMsg + err.what());
+        }
 
         uint32_t imageIndex;
-        VkResult result = vkAcquireNextImageKHR(m_vulkanDevice.logicalDevice(), m_vulkanSwapchain.swapchain(), UINT64_MAX, m_vkImageAvailableSemaphores[m_currentFrame], VK_NULL_HANDLE, &imageIndex);
-        if (result == VK_ERROR_OUT_OF_DATE_KHR) {
-            m_vulkanSwapchain.recreateSwapChain(m_vulkanDevice, m_vkSurface, m_window, m_vulkanPipeline.renderPass(), m_vkCommandPool);
-            return true;
-        } else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
-            GN_CORE_ERROR("Failed to acquire swap chain image.");
-            return false;
+        try {
+            auto result = vulkanDevice.logicalDevice().acquireNextImageKHR(m_vulkanSwapchain.swapchain(), UINT64_MAX, m_vkImageAvailableSemaphores[m_currentFrame], nullptr);
+            if (result.result == vk::Result::eErrorOutOfDateKHR) {
+                m_vulkanSwapchain.recreateSwapChain(m_vulkanDevice, m_vkSurface, m_window, m_vulkanPipeline.renderPass(), m_vulkanRenderLoop.commandPool());
+                return;
+            }
+            imageIndex = result.value;
+        } catch (vk::SystemError err) {
+            std::string errMsg = "Failed to aquire swap chain image: ";
+            GN_CORE_ERROR("{}{}", errMsg, err.what());
+            throw std::runtime_error(errMsg + err.what());
         }
+        // VkResult result = vkAcquireNextImageKHR(m_vulkanDevice.logicalDevice(), m_vulkanSwapchain.swapchain(), UINT64_MAX, m_vkImageAvailableSemaphores[m_currentFrame], VK_NULL_HANDLE, &imageIndex);
+        // if (result == VK_ERROR_OUT_OF_DATE_KHR) {
+        //     return true;
+        // } else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
+        //     GN_CORE_ERROR("Failed to acquire swap chain image.");
+        //     return false;
+        // }
 
         updateUniformBuffer(m_currentFrame);
 
         // Only reset the fence if we are submitting work
-        vkResetFences(m_vulkanDevice.logicalDevice(), 1, &m_vkInFlightFences[m_currentFrame]);
+        try {
+            result = vulkanDevice.logicalDevice().resetFences(1, &m_vkInFlightFences[m_currentFrame]);
+        } catch (vk::SystemError err) {
+            std::string errMsg = "Failed to reset fence: ";
+            GN_CORE_ERROR("{}{}", errMsg, err.what());
+            throw std::runtime_error(errMsg + err.what());
+        }
 
-        vkResetCommandBuffer(m_vkCommandBuffers[m_currentFrame], 0);
-        recordCommandBuffer(m_vkCommandBuffers[m_currentFrame], imageIndex);
+        m_vulkanSwapchain.commandbuffers()[m_currentFrame].reset();
+        // vkResetCommandBuffer(m_vulkanSwapchain.commandbuffers()[m_currentFrame], 0);
+        recordCommandBuffer(m_vulkanSwapchain.commandbuffers()[m_currentFrame], imageIndex);
 
-        VkSubmitInfo submitInfo{};
-        submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+        vk::SubmitInfo submitInfo = {};
 
-        VkSemaphore waitSemaphores[] = {m_vkImageAvailableSemaphores[m_currentFrame]};
-        VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+        vk::Semaphore waitSemaphores[] = {m_vkImageAvailableSemaphores[m_currentFrame]};
+        vk::PipelineStageFlags waitStages[] = {vk::PipelineStageFlagBits::eColorAttachmentOutput};
         submitInfo.waitSemaphoreCount = 1;
         submitInfo.pWaitSemaphores = waitSemaphores;
         submitInfo.pWaitDstStageMask = waitStages;
 
         submitInfo.commandBufferCount = 1;
-        submitInfo.pCommandBuffers = &m_vkCommandBuffers[m_currentFrame];
+        submitInfo.pCommandBuffers = &m_vulkanSwapchain.commandbuffers()[m_currentFrame];
 
-        VkSemaphore signalSemaphores[] = {m_vkRenderFinishedSemaphores[m_currentFrame]};
+        vk::Semaphore signalSemaphores[] = {m_vkRenderFinishedSemaphores[m_currentFrame]};
         submitInfo.signalSemaphoreCount = 1;
         submitInfo.pSignalSemaphores = signalSemaphores;
 
-        if (vkQueueSubmit(m_vulkanDevice.graphicsQueue(), 1, &submitInfo, m_vkInFlightFences[m_currentFrame]) != VK_SUCCESS) {
-            GN_CORE_ERROR("Failed to submit draw command buffer.");
-            return false;
+        try {
+            vulkanDevice.graphicsQueue().submit(submitInfo, m_vkInFlightFences[m_currentFrame]);
+        } catch (vk::SystemError err) {
+            std::string errMsg = "Failed to submit draw command buffer: ";
+            GN_CORE_ERROR("{}{}", errMsg, err.what());
+            throw std::runtime_error(errMsg + err.what());
         }
 
-        VkPresentInfoKHR presentInfo{};
-        presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
-
+        vk::PresentInfoKHR presentInfo = {};
         presentInfo.waitSemaphoreCount = 1;
         presentInfo.pWaitSemaphores = signalSemaphores;
 
-        VkSwapchainKHR swapChains[] = {m_vulkanSwapchain.swapchain()};
+        vk::SwapchainKHR swapChains[] = {m_vulkanSwapchain.swapchain()};
         presentInfo.swapchainCount = 1;
         presentInfo.pSwapchains = swapChains;
         presentInfo.pImageIndices = &imageIndex;
 
-        presentInfo.pResults = nullptr;  // Optional
-
-        result = vkQueuePresentKHR(m_vulkanDevice.presentQueue(), &presentInfo);
-        if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || m_framebufferResized) {
-            m_framebufferResized = false;
-            m_vulkanSwapchain.recreateSwapChain(m_vulkanDevice, m_vkSurface, m_window, m_vulkanPipeline.renderPass(), m_vkCommandPool);
-        } else if (result != VK_SUCCESS) {
-            GN_CORE_ERROR("Failed to present swap chain image.");
-            return false;
+        try {
+            auto result = vulkanDevice.presentQueue().presentKHR(presentInfo);
+            if (result == vk::Result::eErrorOutOfDateKHR || result == vk::Result::eSuboptimalKHR || m_framebufferResized) {
+                m_framebufferResized = false;
+                m_vulkanSwapchain.recreateSwapChain(m_vulkanDevice, m_vkSurface, m_window, m_vulkanPipeline.renderPass(), m_vulkanRenderLoop.commandPool());
+            }
+        } catch (vk::SystemError err) {
+            std::string errMsg = "Failed to present swap chain image: ";
+            GN_CORE_ERROR("{}{}", errMsg, err.what());
+            throw std::runtime_error(errMsg + err.what());
         }
+        // result = vkQueuePresentKHR(m_vulkanDevice.presentQueue(), &presentInfo);
+        // if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || m_framebufferResized) {
+        //     m_framebufferResized = false;
+        // } else if (result != VK_SUCCESS) {
+        //     GN_CORE_ERROR("Failed to present swap chain image.");
+        //     return false;
+        // }
 
-        m_currentFrame = (m_currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
-        return true;
+        m_currentFrame = (m_currentFrame + 1) % m_maxFramesInFlight;
     }
 
     void VulkanRenderer::shutdown() {
@@ -152,33 +170,33 @@ namespace Genesis {
 
         m_vulkanSwapchain.cleanupSwapChain(m_vulkanDevice);
 
-        for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-            vkDestroySemaphore(m_vulkanDevice.logicalDevice(), m_vkImageAvailableSemaphores[i], nullptr);
-            vkDestroySemaphore(m_vulkanDevice.logicalDevice(), m_vkRenderFinishedSemaphores[i], nullptr);
-            vkDestroyFence(m_vulkanDevice.logicalDevice(), m_vkInFlightFences[i], nullptr);
+        for (size_t i = 0; i < m_maxFramesInFlight; i++) {
+            m_vulkanDevice.logicalDevice().destroySemaphore(m_vkImageAvailableSemaphores[i]);
+            m_vulkanDevice.logicalDevice().destroySemaphore(m_vkRenderFinishedSemaphores[i]);
+            m_vulkanDevice.logicalDevice().destroyFence(m_vkInFlightFences[i]);
         }
 
-        for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-            vkDestroyBuffer(m_vulkanDevice.logicalDevice(), m_vkUniformBuffers[i], nullptr);
-            vkFreeMemory(m_vulkanDevice.logicalDevice(), m_vkUniformBuffersMemory[i], nullptr);
+        for (size_t i = 0; i < m_maxFramesInFlight; i++) {
+            m_vulkanDevice.logicalDevice().destroyBuffer(m_vkUniformBuffers[i]);
+            m_vulkanDevice.logicalDevice().freeMemory(m_vkUniformBuffersMemory[i]);
         }
 
-        vkDestroyDescriptorPool(m_vulkanDevice.logicalDevice(), m_vkDescriptorPool, nullptr);
+        m_vulkanDevice.logicalDevice().destroyDescriptorPool(m_vkDescriptorPool);
 
-        vkDestroySampler(m_vulkanDevice.logicalDevice(), m_vkTextureSampler, nullptr);
+        m_vulkanDevice.logicalDevice().destroySampler(m_vkTextureSampler);
         m_textureImage.destroyImageView(m_vulkanDevice);
         m_textureImage.destroyImage(m_vulkanDevice);
         m_textureImage.freeImageMemory(m_vulkanDevice);
 
         m_vulkanDevice.logicalDevice().destroyDescriptorSetLayout(m_vkDescriptorSetLayout);
 
-        vkDestroyBuffer(m_vulkanDevice.logicalDevice(), m_vkIndexBuffer, nullptr);
-        vkFreeMemory(m_vulkanDevice.logicalDevice(), m_vkIndexBufferMemory, nullptr);
+        m_vulkanDevice.logicalDevice().destroyBuffer(m_vkIndexBuffer);
+        m_vulkanDevice.logicalDevice().freeMemory(m_vkIndexBufferMemory);
 
-        vkDestroyBuffer(m_vulkanDevice.logicalDevice(), m_vkVertexBuffer, nullptr);
-        vkFreeMemory(m_vulkanDevice.logicalDevice(), m_vkVertexBufferMemory, nullptr);
+        m_vulkanDevice.logicalDevice().destroyBuffer(m_vkVertexBuffer);
+        m_vulkanDevice.logicalDevice().freeMemory(m_vkVertexBufferMemory);
 
-        vkDestroyCommandPool(m_vulkanDevice.logicalDevice(), m_vkCommandPool, nullptr);
+        m_vulkanDevice.logicalDevice().destroyCommandPool(m_vulkanRenderLoop.commandPool());
 
         m_vulkanDevice.logicalDevice().destroyPipeline(m_vulkanPipeline.pipeline());
         m_vulkanDevice.logicalDevice().destroyPipelineLayout(m_vulkanPipeline.layout());
@@ -194,7 +212,7 @@ namespace Genesis {
     }
 
     void VulkanRenderer::waitForIdle() {
-        vkDeviceWaitIdle(m_vulkanDevice.logicalDevice());
+        m_vulkanDevice.logicalDevice().waitIdle();
     }
 
     void VulkanRenderer::createInstance() {
@@ -212,10 +230,6 @@ namespace Genesis {
             GN_CORE_ERROR("{}", errMsg);
             throw std::runtime_error(errMsg);
         }
-#if defined(GN_PLATFORM_MACOS)
-        extensions.emplace_back(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
-        createInfo.flags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
-#endif
 
         // confirm required validation layer support
         VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo{};
@@ -235,6 +249,11 @@ namespace Genesis {
                                           validationLayers.data(),
                                           static_cast<uint32_t>(extensions.size()),
                                           extensions.data());
+
+#if defined(GN_PLATFORM_MACOS)
+        extensions.emplace_back(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
+        createInfo.flags |= vk::InstanceCreateFlagBits::eEnumeratePortabilityKHR;
+#endif
 
         try {
             m_vkInstance = vk::createInstance(createInfo);
@@ -344,16 +363,17 @@ namespace Genesis {
     void VulkanRenderer::createTextureImage() {
         int texWidth, texHeight, texChannels;
         stbi_uc* pixels = stbi_load(TEXTURE_PATH.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
-        VkDeviceSize imageSize = texWidth * texHeight * 4;
+        vk::DeviceSize imageSize = texWidth * texHeight * 4;
         m_vkMipLevels = static_cast<uint32_t>(std::floor(std::log2(std::max(texWidth, texHeight)))) + 1;
 
         if (!pixels) {
-            GN_CORE_ERROR("Failed to load texture image.");
-            return false;
+            std::string errMsg = "Failed to load texture image.";
+            GN_CORE_ERROR("{}", errMsg);
+            throw std::runtime_error(errMsg);
         }
 
         vk::Buffer stagingBuffer;
-        VkDeviceMemory stagingBufferMemory;
+        vk::DeviceMemory stagingBufferMemory;
         createBuffer(imageSize,
                      vk::BufferUsageFlagBits::eTransferSrc,
                      vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent,
@@ -361,9 +381,15 @@ namespace Genesis {
                      stagingBufferMemory);
 
         void* data;
-        vkMapMemory(m_vulkanDevice.logicalDevice(), stagingBufferMemory, 0, imageSize, 0, &data);
-        memcpy(data, pixels, static_cast<size_t>(imageSize));
-        vkUnmapMemory(m_vulkanDevice.logicalDevice(), stagingBufferMemory);
+        try {
+            data = m_vulkanDevice.logicalDevice().mapMemory(stagingBufferMemory, vk::DeviceSize(0), imageSize, vk::MemoryMapFlags());
+            memcpy(data, pixels, static_cast<size_t>(imageSize));
+            m_vulkanDevice.logicalDevice().unmapMemory(stagingBufferMemory);
+        } catch (vk::SystemError err) {
+            std::string errMsg = "Failed to copy memory: ";
+            GN_CORE_ERROR("{}{}", errMsg, err.what());
+            throw std::runtime_error(errMsg + err.what());
+        }
 
         stbi_image_free(pixels);
 
@@ -383,7 +409,7 @@ namespace Genesis {
                                              vk::ImageLayout::eUndefined,
                                              vk::ImageLayout::eTransferDstOptimal,
                                              m_vkMipLevels,
-                                             m_vkCommandPool);
+                                             m_vulkanRenderLoop.commandPool());
         copyBufferToImage(stagingBuffer, m_textureImage.image(), static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight));
         // transitioned to VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL while generating mipmaps
         // transitionImageLayout(m_vkTextureImage,
@@ -392,35 +418,31 @@ namespace Genesis {
         //                       VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
         //                       m_vkMipLevels);
 
-        vkDestroyBuffer(m_vulkanDevice.logicalDevice(), stagingBuffer, nullptr);
-        vkFreeMemory(m_vulkanDevice.logicalDevice(), stagingBufferMemory, nullptr);
+        m_vulkanDevice.logicalDevice().destroyBuffer(stagingBuffer);
+        m_vulkanDevice.logicalDevice().freeMemory(stagingBufferMemory);
 
-        if (!generateMipmaps(m_textureImage.image(), VK_FORMAT_R8G8B8A8_SRGB, texWidth, texHeight, m_vkMipLevels)) {
-            return false;
-        }
+        generateMipmaps(m_textureImage.image(), vk::Format::eR8G8B8A8Srgb, texWidth, texHeight, m_vkMipLevels);
 
         GN_CORE_INFO("Texture successfully loaded: {}", TEXTURE_PATH.c_str());
-        return true;
     }
 
-    bool VulkanRenderer::generateMipmaps(VkImage image, VkFormat imageFormat, int32_t texWidth, int32_t texHeight, uint32_t mipLevels) {
+    void VulkanRenderer::generateMipmaps(vk::Image image, vk::Format imageFormat, int32_t texWidth, int32_t texHeight, uint32_t mipLevels) {
         // Check if image format supports linear blitting
-        VkFormatProperties formatProperties;
-        vkGetPhysicalDeviceFormatProperties(m_vulkanDevice.physicalDevice(), imageFormat, &formatProperties);
+        vk::FormatProperties formatProperties = m_vulkanDevice.physicalDevice().getFormatProperties(imageFormat);
 
-        if (!(formatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT)) {
-            GN_CORE_ERROR("Texture image format does not support linear blitting.");
-            return false;
+        if (!(formatProperties.optimalTilingFeatures & vk::FormatFeatureFlagBits::eSampledImageFilterLinear)) {
+            std::string errMsg = "Texture image format does not support linear blitting.";
+            GN_CORE_ERROR("{}", errMsg);
+            throw std::runtime_error(errMsg);
         }
 
-        VkCommandBuffer commandBuffer = beginSingleTimeCommands();
+        vk::CommandBuffer commandBuffer = beginSingleTimeCommands();
 
-        VkImageMemoryBarrier barrier{};
-        barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        vk::ImageMemoryBarrier barrier = {};
         barrier.image = image;
         barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
         barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-        barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        barrier.subresourceRange.aspectMask = vk::ImageAspectFlagBits::eColor;
         barrier.subresourceRange.baseArrayLayer = 0;
         barrier.subresourceRange.layerCount = 1;
         barrier.subresourceRange.levelCount = 1;
@@ -430,51 +452,48 @@ namespace Genesis {
 
         for (uint32_t i = 1; i < mipLevels; i++) {
             barrier.subresourceRange.baseMipLevel = i - 1;
-            barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-            barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-            barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-            barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+            barrier.oldLayout = vk::ImageLayout::eTransferDstOptimal;
+            barrier.newLayout = vk::ImageLayout::eTransferSrcOptimal;
+            barrier.srcAccessMask = vk::AccessFlagBits::eTransferWrite;
+            barrier.dstAccessMask = vk::AccessFlagBits::eTransferRead;
 
-            vkCmdPipelineBarrier(commandBuffer,
-                                 VK_PIPELINE_STAGE_TRANSFER_BIT,
-                                 VK_PIPELINE_STAGE_TRANSFER_BIT,
-                                 0,
-                                 0, nullptr,
-                                 0, nullptr,
-                                 1, &barrier);
+            commandBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eTransfer,
+                                          vk::PipelineStageFlagBits::eTransfer,
+                                          vk::DependencyFlags(),
+                                          0, nullptr,
+                                          0, nullptr,
+                                          1, &barrier);
 
-            VkImageBlit blit{};
-            blit.srcOffsets[0] = {0, 0, 0};
-            blit.srcOffsets[1] = {mipWidth, mipHeight, 1};
-            blit.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            vk::ImageBlit blit = {};
+            blit.srcOffsets[0] = vk::Offset3D(0, 0, 0);
+            blit.srcOffsets[1] = vk::Offset3D(mipWidth, mipHeight, 1);
+            blit.srcSubresource.aspectMask = vk::ImageAspectFlagBits::eColor;
             blit.srcSubresource.mipLevel = i - 1;
             blit.srcSubresource.baseArrayLayer = 0;
             blit.srcSubresource.layerCount = 1;
-            blit.dstOffsets[0] = {0, 0, 0};
-            blit.dstOffsets[1] = {mipWidth > 1 ? mipWidth / 2 : 1, mipHeight > 1 ? mipHeight / 2 : 1, 1};
-            blit.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            blit.dstOffsets[0] = vk::Offset3D(0, 0, 0);
+            blit.dstOffsets[1] = vk::Offset3D(mipWidth > 1 ? mipWidth / 2 : 1, mipHeight > 1 ? mipHeight / 2 : 1, 1);
+            blit.dstSubresource.aspectMask = vk::ImageAspectFlagBits::eColor;
             blit.dstSubresource.mipLevel = i;
             blit.dstSubresource.baseArrayLayer = 0;
             blit.dstSubresource.layerCount = 1;
 
-            vkCmdBlitImage(commandBuffer,
-                           image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                           image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                           1, &blit,
-                           VK_FILTER_LINEAR);
+            commandBuffer.blitImage(image, vk::ImageLayout::eTransferSrcOptimal,
+                                    image, vk::ImageLayout::eTransferDstOptimal,
+                                    1, &blit,
+                                    vk::Filter::eLinear);
 
-            barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-            barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-            barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-            barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+            barrier.oldLayout = vk::ImageLayout::eTransferSrcOptimal;
+            barrier.newLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
+            barrier.srcAccessMask = vk::AccessFlagBits::eTransferRead;
+            barrier.dstAccessMask = vk::AccessFlagBits::eShaderRead;
 
-            vkCmdPipelineBarrier(commandBuffer,
-                                 VK_PIPELINE_STAGE_TRANSFER_BIT,
-                                 VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-                                 0,
-                                 0, nullptr,
-                                 0, nullptr,
-                                 1, &barrier);
+            commandBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eTransfer,
+                                          vk::PipelineStageFlagBits::eFragmentShader,
+                                          vk::DependencyFlags(),
+                                          0, nullptr,
+                                          0, nullptr,
+                                          1, &barrier);
 
             if (mipWidth > 1) {
                 mipWidth /= 2;
@@ -485,23 +504,21 @@ namespace Genesis {
         }
 
         barrier.subresourceRange.baseMipLevel = mipLevels - 1;
-        barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-        barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-        barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+        barrier.oldLayout = vk::ImageLayout::eTransferDstOptimal;
+        barrier.newLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
+        barrier.srcAccessMask = vk::AccessFlagBits::eTransferWrite;
+        barrier.dstAccessMask = vk::AccessFlagBits::eShaderRead;
 
-        vkCmdPipelineBarrier(commandBuffer,
-                             VK_PIPELINE_STAGE_TRANSFER_BIT,
-                             VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-                             0,
-                             0, nullptr,
-                             0, nullptr,
-                             1, &barrier);
+        commandBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eTransfer,
+                                      vk::PipelineStageFlagBits::eFragmentShader,
+                                      vk::DependencyFlags(),
+                                      0, nullptr,
+                                      0, nullptr,
+                                      1, &barrier);
 
         endSingleTimeCommands(commandBuffer);
 
         GN_CORE_INFO("Vulkan mip maps generated successfully.");
-        return true;
     }
 
     void VulkanRenderer::createTextureImageView() {
@@ -512,170 +529,168 @@ namespace Genesis {
                                        m_vkMipLevels);
     }
 
-    bool VulkanRenderer::createTextureSampler() {
-        VkSamplerCreateInfo samplerInfo{};
-        samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-        samplerInfo.magFilter = VK_FILTER_LINEAR;
-        samplerInfo.minFilter = VK_FILTER_LINEAR;
-        samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-        samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-        samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    void VulkanRenderer::createTextureSampler() {
+        vk::SamplerCreateInfo samplerInfo = {};
+        samplerInfo.flags = vk::SamplerCreateFlags();
+        samplerInfo.magFilter = vk::Filter::eLinear;
+        samplerInfo.minFilter = vk::Filter::eLinear;
+        samplerInfo.addressModeU = vk::SamplerAddressMode::eRepeat;
+        samplerInfo.addressModeV = vk::SamplerAddressMode::eRepeat;
+        samplerInfo.addressModeW = vk::SamplerAddressMode::eRepeat;
         samplerInfo.anisotropyEnable = VK_TRUE;
         samplerInfo.maxAnisotropy = m_vulkanDevice.physicalDeviceProperties().limits.maxSamplerAnisotropy;
-        samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+        samplerInfo.borderColor = vk::BorderColor::eIntOpaqueBlack;
         samplerInfo.unnormalizedCoordinates = VK_FALSE;
         samplerInfo.compareEnable = VK_FALSE;
-        samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
-        samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+        samplerInfo.compareOp = vk::CompareOp::eAlways;
+        samplerInfo.mipmapMode = vk::SamplerMipmapMode::eLinear;
         samplerInfo.mipLodBias = 0.0f;  // Optional
         samplerInfo.minLod = 0.0f;      // Optional
         samplerInfo.maxLod = static_cast<float>(m_vkMipLevels);
 
-        if (vkCreateSampler(m_vulkanDevice.logicalDevice(), &samplerInfo, nullptr, &m_vkTextureSampler) != VK_SUCCESS) {
-            GN_CORE_ERROR("Failed to create texture sampler.");
-            return false;
+        try {
+            m_vkTextureSampler = m_vulkanDevice.logicalDevice().createSampler(samplerInfo);
+        } catch (vk::SystemError err) {
+            std::string errMsg = "Failed to create texture sampler: ";
+            GN_CORE_ERROR("{}{}", errMsg, err.what());
+            throw std::runtime_error(errMsg + err.what());
         }
 
         GN_CORE_INFO("Vulkan texture sampler created succesfully.");
-        return true;
     }
 
-    void VulkanRenderer::copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height) {
-        VkCommandBuffer commandBuffer = beginSingleTimeCommands();
+    void VulkanRenderer::copyBufferToImage(vk::Buffer buffer, vk::Image image, uint32_t width, uint32_t height) {
+        vk::CommandBuffer commandBuffer = beginSingleTimeCommands();
 
-        VkBufferImageCopy region{};
+        vk::BufferImageCopy region = {};
         region.bufferOffset = 0;
         region.bufferRowLength = 0;
         region.bufferImageHeight = 0;
 
-        region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        region.imageSubresource.aspectMask = vk::ImageAspectFlagBits::eColor;
         region.imageSubresource.mipLevel = 0;
         region.imageSubresource.baseArrayLayer = 0;
         region.imageSubresource.layerCount = 1;
 
-        region.imageOffset = {0, 0, 0};
-        region.imageExtent = {
-            width,
-            height,
-            1};
+        region.imageOffset = vk::Offset3D(0, 0, 0);
+        region.imageExtent = vk::Extent3D(width, height, 1);
 
-        vkCmdCopyBufferToImage(
-            commandBuffer,
-            buffer,
-            image,
-            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-            1,
-            &region);
+        commandBuffer.copyBufferToImage(buffer,
+                                        image,
+                                        vk::ImageLayout::eTransferDstOptimal,
+                                        1,
+                                        &region);
 
         endSingleTimeCommands(commandBuffer);
     }
 
-    bool VulkanRenderer::createCommandBuffers() {
-        m_vkCommandBuffers.resize(MAX_FRAMES_IN_FLIGHT);
-        VkCommandBufferAllocateInfo allocInfo{};
-        allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-        allocInfo.commandPool = m_vkCommandPool;
-        allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-        allocInfo.commandBufferCount = (uint32_t)m_vkCommandBuffers.size();
+    void VulkanRenderer::recordCommandBuffer(vk::CommandBuffer commandBuffer, uint32_t imageIndex) {
+        vk::CommandBufferBeginInfo beginInfo = {};
+        beginInfo.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit;
 
-        if (vkAllocateCommandBuffers(m_vulkanDevice.logicalDevice(), &allocInfo, m_vkCommandBuffers.data()) != VK_SUCCESS) {
-            GN_CORE_ERROR("Failed to allocate command buffers.");
-            return false;
+        try {
+            commandBuffer.begin(beginInfo);
+        } catch (vk::SystemError err) {
+            std::string errMsg = "Unable to being recording command buffer: ";
+            GN_CORE_ERROR("{}{}", errMsg, err.what());
+            throw std::runtime_error(errMsg + err.what());
         }
 
-        GN_CORE_INFO("Vulkan command buffer created successfully.");
-        return true;
-    }
-
-    bool VulkanRenderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex) {
-        VkCommandBufferBeginInfo beginInfo{};
-        beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-        beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-        beginInfo.pInheritanceInfo = nullptr;  // Optional
-
-        if (vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS) {
-            GN_CORE_ERROR("Unable to begin recording command buffer.");
-            return false;
-        }
-
-        VkRenderPassBeginInfo renderPassInfo{};
-        renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-        VkRenderPass renderpass = m_vulkanPipeline.renderPass();
-        renderPassInfo.renderPass = renderpass;  // m_vkRenderPass; TODO: fix
+        vk::RenderPassBeginInfo renderPassInfo = {};
+        renderPassInfo.renderPass = m_vulkanPipeline.renderPass();
         renderPassInfo.framebuffer = m_vulkanSwapchain.framebuffers()[imageIndex];
-        renderPassInfo.renderArea.offset = {0, 0};
+        renderPassInfo.renderArea.offset.x = 0;
+        renderPassInfo.renderArea.offset.y = 0;
         renderPassInfo.renderArea.extent = m_vulkanSwapchain.extent();
 
-        std::array<VkClearValue, 2> clearValues{};
-        clearValues[0].color = {{0.0f, 0.0f, 0.0f, 1.0f}};
-        clearValues[1].depthStencil = {1.0f, 0};
+        std::array<vk::ClearValue, 2> clearValues{};
+        clearValues[0].color = vk::ClearColorValue(0.0f, 0.0f, 0.0f, 1.0f);
+        clearValues[1].depthStencil = vk::ClearDepthStencilValue(1.0f, 0);
 
         renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
         renderPassInfo.pClearValues = clearValues.data();
 
-        vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+        commandBuffer.beginRenderPass(renderPassInfo, vk::SubpassContents::eInline);
 
-        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_vulkanPipeline.pipeline());
+        commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, m_vulkanPipeline.pipeline());
 
-        VkViewport viewport{};
+        vk::Viewport viewport = {};
         viewport.x = 0.0f;
         viewport.y = 0.0f;
         viewport.width = static_cast<float>(m_vulkanSwapchain.extent().width);
         viewport.height = static_cast<float>(m_vulkanSwapchain.extent().height);
         viewport.minDepth = 0.0f;
         viewport.maxDepth = 1.0f;
-        vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
+        commandBuffer.setViewport(0, 1, &viewport);
 
-        VkRect2D scissor{};
-        scissor.offset = {0, 0};
+        vk::Rect2D scissor = {};
+        scissor.offset.x = 0;
+        scissor.offset.y = 0;
         scissor.extent = m_vulkanSwapchain.extent();
-        vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
+        commandBuffer.setScissor(0, 1, &scissor);
 
-        VkBuffer vertexBuffers[] = {m_vkVertexBuffer};
-        VkDeviceSize offsets[] = {0};
-        vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+        vk::Buffer vertexBuffers[] = {m_vkVertexBuffer};
+        vk::DeviceSize offsets[] = {0};
+        commandBuffer.bindVertexBuffers(0, 1, vertexBuffers, offsets);
 
-        vkCmdBindIndexBuffer(commandBuffer, m_vkIndexBuffer, 0, VK_INDEX_TYPE_UINT32);
+        commandBuffer.bindIndexBuffer(m_vkIndexBuffer, 0, vk::IndexType::eUint32);
 
-        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_vulkanPipeline.layout(), 0, 1, &m_vkDescriptorSets[m_currentFrame], 0, nullptr);
+        commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_vulkanPipeline.layout(), 0, 1, &m_vkDescriptorSets[m_currentFrame], 0, nullptr);
 
-        vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(m_indices.size()), 1, 0, 0, 0);
+        commandBuffer.drawIndexed(static_cast<uint32_t>(m_indices.size()), 1, 0, 0, 0);
 
-        vkCmdEndRenderPass(commandBuffer);
+        commandBuffer.endRenderPass();
 
-        if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS) {
-            GN_CORE_ERROR("Failed to record command buffer.");
-            return false;
+        try {
+            commandBuffer.end();
+        } catch (vk::SystemError err) {
+            std::string errMsg = "Failed to record command buffer: ";
+            GN_CORE_ERROR("{}{}", errMsg, err.what());
+            throw std::runtime_error(errMsg + err.what());
         }
-
-        return true;
     }
 
-    bool VulkanRenderer::createSyncObjects() {
-        m_vkImageAvailableSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
-        m_vkRenderFinishedSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
-        m_vkInFlightFences.resize(MAX_FRAMES_IN_FLIGHT);
+    void VulkanRenderer::createSyncObjects(VulkanDevice& vulkanDevice) {
+        m_vkImageAvailableSemaphores.resize(m_maxFramesInFlight);
+        m_vkRenderFinishedSemaphores.resize(m_maxFramesInFlight);
+        m_vkInFlightFences.resize(m_maxFramesInFlight);
 
-        VkSemaphoreCreateInfo semaphoreInfo{};
-        semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-
-        VkFenceCreateInfo fenceInfo{};
-        fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-        fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
-
-        for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-            if (vkCreateSemaphore(m_vulkanDevice.logicalDevice(), &semaphoreInfo, nullptr, &m_vkImageAvailableSemaphores[i]) != VK_SUCCESS ||
-                vkCreateSemaphore(m_vulkanDevice.logicalDevice(), &semaphoreInfo, nullptr, &m_vkRenderFinishedSemaphores[i]) != VK_SUCCESS ||
-                vkCreateFence(m_vulkanDevice.logicalDevice(), &fenceInfo, nullptr, &m_vkInFlightFences[i]) != VK_SUCCESS) {
-                GN_CORE_ERROR("Failed to create semaphores.");
-                return false;
-            }
+        for (size_t i = 0; i < m_maxFramesInFlight; i++) {
+            m_vkImageAvailableSemaphores[i] = createSemaphore(vulkanDevice);
+            m_vkRenderFinishedSemaphores[i] = createSemaphore(vulkanDevice);
+            m_vkInFlightFences[i] = createFence(vulkanDevice);
         }
 
-        return true;
+        GN_CORE_INFO("Vulkan semaphores and fences created successfully.");
     }
 
-    bool VulkanRenderer::loadModel() {
+    vk::Semaphore VulkanRenderer::createSemaphore(VulkanDevice& vulkanDevice) {
+        vk::SemaphoreCreateInfo semaphoreInfo = {};
+        semaphoreInfo.flags = vk::SemaphoreCreateFlags();
+
+        try {
+            return vulkanDevice.logicalDevice().createSemaphore(semaphoreInfo);
+        } catch (vk::SystemError err) {
+            std::string errMsg = "Failed to create semaphore: ";
+            GN_CORE_ERROR("{}{}", errMsg, err.what());
+            throw std::runtime_error(errMsg + err.what());
+        }
+    }
+
+    vk::Fence VulkanRenderer::createFence(VulkanDevice& vulkanDevice) {
+        vk::FenceCreateInfo fenceInfo = {};
+        fenceInfo.flags = vk::FenceCreateFlags() | vk::FenceCreateFlagBits::eSignaled;
+
+        try {
+            return vulkanDevice.logicalDevice().createFence(fenceInfo);
+        } catch (vk::SystemError err) {
+            std::string errMsg = "Failed to create fence: ";
+            GN_CORE_ERROR("{}{}", errMsg, err.what());
+            throw std::runtime_error(errMsg + err.what());
+        }
+    }
+
+    void VulkanRenderer::loadModel() {
         tinyobj::attrib_t attrib;
         std::vector<tinyobj::shape_t> shapes;
         std::vector<tinyobj::material_t> materials;
@@ -683,7 +698,7 @@ namespace Genesis {
 
         if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, MODEL_PATH.c_str())) {
             GN_CORE_ERROR("{}{}", warn, err);
-            return false;
+            throw std::runtime_error(warn + err);
         }
 
         std::unordered_map<Vertex, uint32_t> uniqueVertices{};
@@ -715,23 +730,28 @@ namespace Genesis {
         }
 
         GN_CORE_INFO("Model loadded successfully.");
-        return true;
     }
 
-    bool VulkanRenderer::createVertexBuffer() {
-        VkDeviceSize bufferSize = sizeof(m_vertices[0]) * m_vertices.size();
+    void VulkanRenderer::createVertexBuffer() {
+        vk::DeviceSize bufferSize = sizeof(m_vertices[0]) * m_vertices.size();
 
         vk::Buffer stagingBuffer;
-        VkDeviceMemory stagingBufferMemory;
+        vk::DeviceMemory stagingBufferMemory;
         createBuffer(bufferSize,
                      vk::BufferUsageFlagBits::eTransferSrc,
                      vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent,
                      stagingBuffer, stagingBufferMemory);
 
-        void* data;
-        vkMapMemory(m_vulkanDevice.logicalDevice(), stagingBufferMemory, 0, bufferSize, 0, &data);
-        memcpy(data, m_vertices.data(), (size_t)bufferSize);
-        vkUnmapMemory(m_vulkanDevice.logicalDevice(), stagingBufferMemory);
+        try {
+            void* data;
+            auto result = m_vulkanDevice.logicalDevice().mapMemory(stagingBufferMemory, vk::DeviceSize(0), bufferSize, vk::MemoryMapFlags(), &data);
+            memcpy(data, m_vertices.data(), (size_t)bufferSize);
+            m_vulkanDevice.logicalDevice().unmapMemory(stagingBufferMemory);
+        } catch (vk::SystemError err) {
+            std::string errMsg = "Failed to copy memory: ";
+            GN_CORE_ERROR("{}{}", errMsg, err.what());
+            throw std::runtime_error(errMsg + err.what());
+        }
 
         createBuffer(bufferSize,
                      vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eVertexBuffer,
@@ -741,28 +761,33 @@ namespace Genesis {
 
         copyBuffer(stagingBuffer, m_vkVertexBuffer, bufferSize);
 
-        vkDestroyBuffer(m_vulkanDevice.logicalDevice(), stagingBuffer, nullptr);
-        vkFreeMemory(m_vulkanDevice.logicalDevice(), stagingBufferMemory, nullptr);
+        m_vulkanDevice.logicalDevice().destroyBuffer(stagingBuffer);
+        m_vulkanDevice.logicalDevice().freeMemory(stagingBufferMemory);
 
         GN_CORE_INFO("Vulkan vertex buffer created.");
-        return true;
     }
 
-    bool VulkanRenderer::createIndexBuffer() {
-        VkDeviceSize bufferSize = sizeof(m_indices[0]) * m_indices.size();
+    void VulkanRenderer::createIndexBuffer() {
+        vk::DeviceSize bufferSize = sizeof(m_indices[0]) * m_indices.size();
 
         vk::Buffer stagingBuffer;
-        VkDeviceMemory stagingBufferMemory;
+        vk::DeviceMemory stagingBufferMemory;
         createBuffer(bufferSize,
                      vk::BufferUsageFlagBits::eTransferSrc,
                      vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent,
                      stagingBuffer,
                      stagingBufferMemory);
 
-        void* data;
-        vkMapMemory(m_vulkanDevice.logicalDevice(), stagingBufferMemory, 0, bufferSize, 0, &data);
-        memcpy(data, m_indices.data(), (size_t)bufferSize);
-        vkUnmapMemory(m_vulkanDevice.logicalDevice(), stagingBufferMemory);
+        try {
+            void* data;
+            auto result = m_vulkanDevice.logicalDevice().mapMemory(stagingBufferMemory, vk::DeviceSize(0), bufferSize, vk::MemoryMapFlags(), &data);
+            memcpy(data, m_indices.data(), (size_t)bufferSize);
+            m_vulkanDevice.logicalDevice().unmapMemory(stagingBufferMemory);
+        } catch (vk::SystemError err) {
+            std::string errMsg = "Failed to copy memory: ";
+            GN_CORE_ERROR("{}{}", errMsg, err.what());
+            throw std::runtime_error(errMsg + err.what());
+        }
 
         createBuffer(bufferSize,
                      vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eIndexBuffer,
@@ -772,103 +797,113 @@ namespace Genesis {
 
         copyBuffer(stagingBuffer, m_vkIndexBuffer, bufferSize);
 
-        vkDestroyBuffer(m_vulkanDevice.logicalDevice(), stagingBuffer, nullptr);
-        vkFreeMemory(m_vulkanDevice.logicalDevice(), stagingBufferMemory, nullptr);
+        m_vulkanDevice.logicalDevice().destroyBuffer(stagingBuffer);
+        m_vulkanDevice.logicalDevice().freeMemory(stagingBufferMemory);
 
-        return true;
+        GN_CORE_INFO("Vulkan index buffer created.");
     }
 
-    bool VulkanRenderer::createUniformBuffers() {
-        VkDeviceSize bufferSize = sizeof(UniformBufferObject);
+    void VulkanRenderer::createUniformBuffers() {
+        vk::DeviceSize bufferSize = sizeof(UniformBufferObject);
 
-        m_vkUniformBuffers.resize(MAX_FRAMES_IN_FLIGHT);
-        m_vkUniformBuffersMemory.resize(MAX_FRAMES_IN_FLIGHT);
-        m_vkUniformBuffersMapped.resize(MAX_FRAMES_IN_FLIGHT);
+        m_vkUniformBuffers.resize(m_maxFramesInFlight);
+        m_vkUniformBuffersMemory.resize(m_maxFramesInFlight);
+        m_vkUniformBuffersMapped.resize(m_maxFramesInFlight);
 
-        for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+        for (size_t i = 0; i < m_maxFramesInFlight; i++) {
             createBuffer(bufferSize,
                          vk::BufferUsageFlagBits::eUniformBuffer,
                          vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent,
                          m_vkUniformBuffers[i], m_vkUniformBuffersMemory[i]);
-            vkMapMemory(m_vulkanDevice.logicalDevice(), m_vkUniformBuffersMemory[i], 0, bufferSize, 0, &m_vkUniformBuffersMapped[i]);
+            auto result = m_vulkanDevice.logicalDevice().mapMemory(m_vkUniformBuffersMemory[i],
+                                                                   vk::DeviceSize(0),
+                                                                   bufferSize,
+                                                                   vk::MemoryMapFlags(),
+                                                                   &m_vkUniformBuffersMapped[i]);
         }
 
         GN_CORE_INFO("Vulkan uniform buffers created successfully.");
-        return true;
     }
 
-    bool VulkanRenderer::createDescriptorPool() {
-        std::array<VkDescriptorPoolSize, 2> poolSizes{};
-        poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        poolSizes[0].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
-        poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        poolSizes[1].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+    void VulkanRenderer::createDescriptorPool() {
+        std::array<vk::DescriptorPoolSize, 2> poolSizes{};
+        poolSizes[0].type = vk::DescriptorType::eUniformBuffer;
+        poolSizes[0].descriptorCount = static_cast<uint32_t>(m_maxFramesInFlight);
+        poolSizes[1].type = vk::DescriptorType::eCombinedImageSampler;
+        poolSizes[1].descriptorCount = static_cast<uint32_t>(m_maxFramesInFlight);
 
-        VkDescriptorPoolCreateInfo poolInfo{};
-        poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+        vk::DescriptorPoolCreateInfo poolInfo = {};
+        poolInfo.flags = vk::DescriptorPoolCreateFlags();
         poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
         poolInfo.pPoolSizes = poolSizes.data();
-        poolInfo.maxSets = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+        poolInfo.maxSets = static_cast<uint32_t>(m_maxFramesInFlight);
 
-        if (vkCreateDescriptorPool(m_vulkanDevice.logicalDevice(), &poolInfo, nullptr, &m_vkDescriptorPool) != VK_SUCCESS) {
-            GN_CORE_ERROR("Failed to create descriptor pool.");
-            return false;
+        try {
+            m_vkDescriptorPool = m_vulkanDevice.logicalDevice().createDescriptorPool(poolInfo);
+        } catch (vk::SystemError err) {
+            std::string errMsg = "Failed to create descriptor pool: ";
+            GN_CORE_ERROR("{}{}", errMsg, err.what());
+            throw std::runtime_error(errMsg + err.what());
         }
 
         GN_CORE_INFO("Vulkan descriptor pool created successfully.");
-        return true;
     }
 
-    bool VulkanRenderer::createDescriptorSets() {
-        std::vector<VkDescriptorSetLayout> layouts(MAX_FRAMES_IN_FLIGHT, m_vkDescriptorSetLayout);
-        VkDescriptorSetAllocateInfo allocInfo{};
-        allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    void VulkanRenderer::createDescriptorSets() {
+        std::vector<vk::DescriptorSetLayout> layouts(m_maxFramesInFlight, m_vkDescriptorSetLayout);
+        vk::DescriptorSetAllocateInfo allocInfo = {};
+        ;
         allocInfo.descriptorPool = m_vkDescriptorPool;
-        allocInfo.descriptorSetCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+        allocInfo.descriptorSetCount = static_cast<uint32_t>(m_maxFramesInFlight);
         allocInfo.pSetLayouts = layouts.data();
 
-        m_vkDescriptorSets.resize(MAX_FRAMES_IN_FLIGHT);
-        if (vkAllocateDescriptorSets(m_vulkanDevice.logicalDevice(), &allocInfo, m_vkDescriptorSets.data()) != VK_SUCCESS) {
-            GN_CORE_ERROR("Failed to allocate descriptor sets.");
-            return false;
+        m_vkDescriptorSets.resize(m_maxFramesInFlight);
+        try {
+            m_vkDescriptorSets = m_vulkanDevice.logicalDevice().allocateDescriptorSets(allocInfo);
+        } catch (vk::SystemError err) {
+            std::string errMsg = "Failed to allocate descriptor sets: ";
+            GN_CORE_ERROR("{}{}", errMsg, err.what());
+            throw std::runtime_error(errMsg + err.what());
         }
 
-        for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-            VkDescriptorBufferInfo bufferInfo{};
+        for (size_t i = 0; i < m_maxFramesInFlight; i++) {
+            vk::DescriptorBufferInfo bufferInfo = {};
             bufferInfo.buffer = m_vkUniformBuffers[i];
             bufferInfo.offset = 0;
             bufferInfo.range = sizeof(UniformBufferObject);
 
-            VkImageView imageview = m_textureImage.imageView();  // TODO: temp fix
-            VkDescriptorImageInfo imageInfo{};
-            imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-            imageInfo.imageView = imageview;  // m_textureImageView.imageView();
+            vk::DescriptorImageInfo imageInfo = {};
+            imageInfo.imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
+            imageInfo.imageView = m_textureImage.imageView();
             imageInfo.sampler = m_vkTextureSampler;
 
-            std::array<VkWriteDescriptorSet, 2> descriptorWrites{};
-            descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            std::array<vk::WriteDescriptorSet, 2> descriptorWrites{};
             descriptorWrites[0].dstSet = m_vkDescriptorSets[i];
             descriptorWrites[0].dstBinding = 0;
             descriptorWrites[0].dstArrayElement = 0;
-            descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+            descriptorWrites[0].descriptorType = vk::DescriptorType::eUniformBuffer;
             descriptorWrites[0].descriptorCount = 1;
             descriptorWrites[0].pBufferInfo = &bufferInfo;
             descriptorWrites[0].pImageInfo = nullptr;        // Optional
             descriptorWrites[0].pTexelBufferView = nullptr;  // Optional
 
-            descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
             descriptorWrites[1].dstSet = m_vkDescriptorSets[i];
             descriptorWrites[1].dstBinding = 1;
             descriptorWrites[1].dstArrayElement = 0;
-            descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+            descriptorWrites[1].descriptorType = vk::DescriptorType::eCombinedImageSampler;
             descriptorWrites[1].descriptorCount = 1;
             descriptorWrites[1].pImageInfo = &imageInfo;
 
-            vkUpdateDescriptorSets(m_vulkanDevice.logicalDevice(), static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
+            try {
+                m_vulkanDevice.logicalDevice().updateDescriptorSets(static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
+            } catch (vk::SystemError err) {
+                std::string errMsg = "Failed to update descriptor sets: ";
+                GN_CORE_ERROR("{}{}", errMsg, err.what());
+                throw std::runtime_error(errMsg + err.what());
+            }
         }
 
         GN_CORE_INFO("Vulkan descriptor sets created successfully.");
-        return true;
     }
 
     void VulkanRenderer::updateUniformBuffer(uint32_t currentImage) {
@@ -886,11 +921,11 @@ namespace Genesis {
         memcpy(m_vkUniformBuffersMapped[currentImage], &ubo, sizeof(ubo));
     }
 
-    bool VulkanRenderer::createBuffer(VkDeviceSize size,
+    void VulkanRenderer::createBuffer(vk::DeviceSize size,
                                       vk::BufferUsageFlags usage,
                                       vk::MemoryPropertyFlags properties,
                                       vk::Buffer& buffer,
-                                      VkDeviceMemory& bufferMemory) {
+                                      vk::DeviceMemory& bufferMemory) {
         vk::BufferCreateInfo bufferInfo = {};
         bufferInfo.size = size;
         bufferInfo.usage = usage;
@@ -899,7 +934,7 @@ namespace Genesis {
         try {
             buffer = m_vulkanDevice.logicalDevice().createBuffer(bufferInfo);
         } catch (vk::SystemError err) {
-            std::string errMsg = "Failed to create vertex buffer: ";
+            std::string errMsg = "Failed to create buffer: ";
             GN_CORE_ERROR("{}{}", errMsg, err.what());
             throw std::runtime_error(errMsg + err.what());
         }
@@ -913,56 +948,76 @@ namespace Genesis {
         try {
             bufferMemory = m_vulkanDevice.logicalDevice().allocateMemory(allocInfo);
         } catch (vk::SystemError err) {
-            std::string errMsg = "Failed to allocate vertex buffer memory: ";
+            std::string errMsg = "Failed to allocate buffer memory: ";
             GN_CORE_ERROR("{}{}", errMsg, err.what());
             throw std::runtime_error(errMsg + err.what());
         }
 
         m_vulkanDevice.logicalDevice().bindBufferMemory(buffer, bufferMemory, 0);
-        return true;
     }
 
-    VkCommandBuffer VulkanRenderer::beginSingleTimeCommands() {
-        VkCommandBufferAllocateInfo allocInfo{};
-        allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-        allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-        allocInfo.commandPool = m_vkCommandPool;
+    vk::CommandBuffer VulkanRenderer::beginSingleTimeCommands() {
+        vk::CommandBufferAllocateInfo allocInfo = {};
+        allocInfo.level = vk::CommandBufferLevel::ePrimary;
+        allocInfo.commandPool = m_vulkanRenderLoop.commandPool();
         allocInfo.commandBufferCount = 1;
 
-        VkCommandBuffer commandBuffer;
-        vkAllocateCommandBuffers(m_vulkanDevice.logicalDevice(), &allocInfo, &commandBuffer);
+        vk::CommandBuffer commandBuffer = m_vulkanDevice.logicalDevice().allocateCommandBuffers(allocInfo)[0];
 
-        VkCommandBufferBeginInfo beginInfo{};
-        beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-        beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+        vk::CommandBufferBeginInfo beginInfo = {};
+        beginInfo.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit;
 
-        vkBeginCommandBuffer(commandBuffer, &beginInfo);
+        try {
+            commandBuffer.begin(beginInfo);
+        } catch (vk::SystemError err) {
+            std::string errMsg = "Unable to being recording single use command buffer: ";
+            GN_CORE_ERROR("{}{}", errMsg, err.what());
+            throw std::runtime_error(errMsg + err.what());
+        }
 
         return commandBuffer;
     }
 
-    void VulkanRenderer::endSingleTimeCommands(VkCommandBuffer commandBuffer) {
-        vkEndCommandBuffer(commandBuffer);
+    void VulkanRenderer::endSingleTimeCommands(vk::CommandBuffer commandBuffer) {
+        try {
+            commandBuffer.end();
+        } catch (vk::SystemError err) {
+            std::string errMsg = "Failed to record single use command buffer: ";
+            GN_CORE_ERROR("{}{}", errMsg, err.what());
+            throw std::runtime_error(errMsg + err.what());
+        }
 
-        VkSubmitInfo submitInfo{};
-        submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+        vk::SubmitInfo submitInfo = {};
         submitInfo.commandBufferCount = 1;
         submitInfo.pCommandBuffers = &commandBuffer;
 
-        vkQueueSubmit(m_vulkanDevice.graphicsQueue(), 1, &submitInfo, VK_NULL_HANDLE);
-        vkQueueWaitIdle(m_vulkanDevice.graphicsQueue());
+        try {
+            auto result = m_vulkanDevice.graphicsQueue().submit(1, &submitInfo, nullptr);
+        } catch (vk::SystemError err) {
+            std::string errMsg = "Failed to submit sungle use command buffer: ";
+            GN_CORE_ERROR("{}{}", errMsg, err.what());
+            throw std::runtime_error(errMsg + err.what());
+        }
 
-        vkFreeCommandBuffers(m_vulkanDevice.logicalDevice(), m_vkCommandPool, 1, &commandBuffer);
+        m_vulkanDevice.graphicsQueue().waitIdle();
+
+        m_vulkanDevice.logicalDevice().freeCommandBuffers(m_vulkanRenderLoop.commandPool(), 1, &commandBuffer);
     }
 
-    void VulkanRenderer::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size) {
-        VkCommandBuffer commandBuffer = beginSingleTimeCommands();
+    void VulkanRenderer::copyBuffer(vk::Buffer srcBuffer, vk::Buffer dstBuffer, vk::DeviceSize size) {
+        vk::CommandBuffer commandBuffer = beginSingleTimeCommands();
 
-        VkBufferCopy copyRegion{};
+        vk::BufferCopy copyRegion = {};
         copyRegion.srcOffset = 0;  // Optional
         copyRegion.dstOffset = 0;  // Optional
         copyRegion.size = size;
-        vkCmdCopyBuffer(commandBuffer, srcBuffer, dstBuffer, 1, &copyRegion);
+        try {
+            commandBuffer.copyBuffer(srcBuffer, dstBuffer, 1, &copyRegion);
+        } catch (vk::SystemError err) {
+            std::string errMsg = "Failed to copy buffer: ";
+            GN_CORE_ERROR("{}{}", errMsg, err.what());
+            throw std::runtime_error(errMsg + err.what());
+        }
 
         endSingleTimeCommands(commandBuffer);
     }
