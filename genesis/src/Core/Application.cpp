@@ -21,6 +21,7 @@ namespace Genesis {
         EventSystem::registerEvent(EventType::WindowClose, this, GN_BIND_EVENT_FN(Application::onCloseEvent));
         m_inputSystem = std::make_unique<InputSystem>();
         m_renderer = std::make_unique<VulkanRenderer>(m_window);
+        m_scene = std::make_shared<Scene>(Scene());
         m_isRunning = true;
     }
 
@@ -29,7 +30,9 @@ namespace Genesis {
 
         while (m_isRunning) {
             m_window->onUpdate();
-            m_renderer->drawFrame();
+            std::shared_ptr<GLFWWindow> window = std::dynamic_pointer_cast<GLFWWindow>(m_window);
+            window->updateTitle(m_currentFps);
+            m_renderer->drawFrame(m_scene);
             calculateFrameRate();
         }
 
@@ -50,8 +53,8 @@ namespace Genesis {
         using time_point = std::chrono::time_point<Clock, duration>;
         m_currentTime = Clock::now();
         auto frameTime = m_currentTime - m_previousTime;
-        auto fps = 1 / frameTime.count();
-        GN_CORE_TRACE2("frameTime: {}, fps: {}", frameTime, fps);
+        m_currentFps = 1 / frameTime.count();
+        GN_CORE_TRACE2("frameTime: {}, fps: {}", frameTime, m_currentFps);
 
         m_previousTime = m_currentTime;
     }
