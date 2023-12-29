@@ -207,37 +207,40 @@ namespace Genesis {
     }
 
     void VulkanSwapchain::createDepthResources(VulkanDevice& vulkanDevice, VulkanCommandBuffer& vulkanCommandBuffer) {
-        m_vkDepthFormat = findDepthFormat(vulkanDevice);
+        vk::Format depthFormat = findDepthFormat(vulkanDevice);
 
-        m_depthImage.createImage(vulkanDevice,
-                                 extent().width,
-                                 extent().height,
-                                 1,
-                                 vulkanDevice.msaaSamples(),
-                                 m_vkDepthFormat,
-                                 vk::ImageTiling::eOptimal,
-                                 vk::ImageUsageFlagBits::eDepthStencilAttachment,
-                                 vk::MemoryPropertyFlagBits::eDeviceLocal);
-        m_depthImage.createImageView(vulkanDevice,
-                                     m_depthImage.image(),
-                                     m_vkDepthFormat,
-                                     vk::ImageAspectFlagBits::eDepth,
-                                     1);
+        for (size_t i = 0; i < m_swapchainFrames.size(); ++i) {
+            m_swapchainFrames[i].depthFormat = depthFormat;
+            m_swapchainFrames[i].depthBuffer.createImage(vulkanDevice,
+                                                         extent().width,
+                                                         extent().height,
+                                                         1,
+                                                         vulkanDevice.msaaSamples(),
+                                                         depthFormat,
+                                                         vk::ImageTiling::eOptimal,
+                                                         vk::ImageUsageFlagBits::eDepthStencilAttachment,
+                                                         vk::MemoryPropertyFlagBits::eDeviceLocal);
+            m_swapchainFrames[i].depthBuffer.createImageView(vulkanDevice,
+                                                             m_swapchainFrames[i].depthBuffer.image(),
+                                                             depthFormat,
+                                                             vk::ImageAspectFlagBits::eDepth,
+                                                             1);
 
-        m_depthImage.transitionImageLayout(vulkanDevice,
-                                           m_depthImage.image(),
-                                           m_vkDepthFormat,
-                                           vk::ImageLayout::eUndefined,
-                                           vk::ImageLayout::eDepthStencilAttachmentOptimal,
-                                           1,
-                                           vulkanCommandBuffer);
+            m_swapchainFrames[i].depthBuffer.transitionImageLayout(vulkanDevice,
+                                                                   m_swapchainFrames[i].depthBuffer.image(),
+                                                                   depthFormat,
+                                                                   vk::ImageLayout::eUndefined,
+                                                                   vk::ImageLayout::eDepthStencilAttachmentOptimal,
+                                                                   1,
+                                                                   vulkanCommandBuffer);
+        }
 
         GN_CORE_INFO("Vulkan depth resources created successfully.");
     }
 
     void VulkanSwapchain::createFramebuffers(VulkanDevice& vulkanDevice, vk::RenderPass renderPass) {
         for (size_t i = 0; i < m_swapchainFrames.size(); i++) {
-            std::array<vk::ImageView, 3> attachments = {m_colorImage.imageView(), m_depthImage.imageView(), m_swapchainFrames[i].vulkanImage.imageView()};
+            std::array<vk::ImageView, 3> attachments = {m_colorImage.imageView(), m_swapchainFrames[i].depthBuffer.imageView(), m_swapchainFrames[i].vulkanImage.imageView()};
 
             vk::FramebufferCreateInfo framebufferInfo = {};
             framebufferInfo.renderPass = renderPass;
@@ -506,15 +509,15 @@ namespace Genesis {
     }
 
     void VulkanSwapchain::cleanupSwapChain(VulkanDevice& vulkanDevice, vk::CommandPool commandPool) {
-        m_depthImage.destroyImageView(vulkanDevice);
-        m_depthImage.destroyImage(vulkanDevice);
-        m_depthImage.freeImageMemory(vulkanDevice);
-
         m_colorImage.destroyImageView(vulkanDevice);
         m_colorImage.destroyImage(vulkanDevice);
         m_colorImage.freeImageMemory(vulkanDevice);
 
         for (auto frame : m_swapchainFrames) {
+            vulkanDevice.logicalDevice().destroyImageView(frame.depthBuffer.imageView());
+            vulkanDevice.logicalDevice().destroyImage(frame.depthBuffer.image());
+            vulkanDevice.logicalDevice().freeMemory(frame.depthBuffer.imageMemory());
+
             vulkanDevice.logicalDevice().unmapMemory(frame.cameraDataBuffer.memory());
             vulkanDevice.logicalDevice().freeMemory(frame.cameraDataBuffer.memory());
             vulkanDevice.logicalDevice().destroyBuffer(frame.cameraDataBuffer.buffer());
@@ -551,8 +554,9 @@ namespace Genesis {
             }
         }
 
-        GN_CORE_ERROR("Failed to find supported format.");
-        return vk::Format();
+        std::string errMsg = "Failed to find supported format.";
+        GN_CORE_ERROR("{}", errMsg);
+        throw std::runtime_error(errMsg);
     }
 
     vk::Format VulkanSwapchain::findDepthFormat(VulkanDevice& vulkanDevice) {

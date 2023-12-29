@@ -12,6 +12,8 @@ namespace Genesis {
     struct SwapChainFrame {
             VulkanImage vulkanImage;
             vk::Framebuffer framebuffer;
+            VulkanImage depthBuffer;
+            vk::Format depthFormat;
 
             VulkanCommandBuffer vulkanCommandBuffer;
 
@@ -43,7 +45,6 @@ namespace Genesis {
             std::vector<SwapChainFrame> const& swapchainFrames() { return m_swapchainFrames; }
             vk::Format const& format() const { return m_vkSwapchainImageFormat; }
             vk::Extent2D const& extent() const { return m_vkSwapchainExtent; }
-            vk::Format const& depthFormat() const { return m_vkDepthFormat; }
             vk::DescriptorSetLayout const& frameDescriptorSetLayout() const { return m_vkFrameDescriptorSetLayout; }
             vk::DescriptorPool const& frameDescriptorPool() const { return m_vkFrameDescriptorPool; }
             vk::DescriptorSetLayout const& meshDescriptorSetLayout() const { return m_vkMeshDescriptorSetLayout; }
@@ -98,7 +99,5 @@ namespace Genesis {
             vk::DescriptorSetLayout m_vkMeshDescriptorSetLayout;
 
             VulkanImage m_colorImage;
-            VulkanImage m_depthImage;
-            vk::Format m_vkDepthFormat;
     };
 }  // namespace Genesis

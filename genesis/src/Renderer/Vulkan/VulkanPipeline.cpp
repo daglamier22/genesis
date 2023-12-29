@@ -92,8 +92,6 @@ namespace Genesis {
         depthStencil.depthWriteEnable = VK_TRUE;
         depthStencil.depthCompareOp = vk::CompareOp::eLess;
         depthStencil.depthBoundsTestEnable = VK_FALSE;
-        depthStencil.minDepthBounds = 0.0f;  // Optional
-        depthStencil.maxDepthBounds = 1.0f;  // Optional
         depthStencil.stencilTestEnable = VK_FALSE;
 
         vk::PipelineColorBlendAttachmentState colorBlendAttachment = {};
