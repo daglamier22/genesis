@@ -7,6 +7,7 @@
 
 #include "Core/Logger.h"
 #include "Platform/GLFWWindow.h"
+#include "Resources/ObjMesh.h"
 #include "VulkanShader.h"
 
 namespace Genesis {
@@ -20,7 +21,7 @@ namespace Genesis {
 
     void VulkanRenderer::onResizeEvent(Event& e) {
         GN_CORE_TRACE("Resized");
-        // m_framebufferResized = true;
+        m_framebufferResized = true;
     }
 
     void VulkanRenderer::init() {
@@ -371,17 +372,9 @@ namespace Genesis {
                                                                nullptr);
 
         uint32_t startInstance = 0;
-        // Triangles
-        uint32_t instanceCount = static_cast<uint32_t>(scene->trianglePositions.size());
-        renderObjects(vulkanCommandBuffer, meshTypes::TRIANGLE, startInstance, instanceCount);
-
-        // Squares
-        instanceCount = static_cast<uint32_t>(scene->squarePositions.size());
-        renderObjects(vulkanCommandBuffer, meshTypes::SQUARE, startInstance, instanceCount);
-
-        // Stars
-        instanceCount = static_cast<uint32_t>(scene->starPositions.size());
-        renderObjects(vulkanCommandBuffer, meshTypes::STAR, startInstance, instanceCount);
+        for (auto pair : scene->positions) {
+            renderObjects(vulkanCommandBuffer, pair.first, startInstance, static_cast<uint32_t>(pair.second.size()));
+        }
 
         vulkanCommandBuffer.commandBuffer().endRenderPass();
 
@@ -445,48 +438,21 @@ namespace Genesis {
     // }
 
     void VulkanRenderer::createAssets() {
-        std::vector<float> triangleVertices = {{0.0f, -0.1f, 1.0f, 1.0f, 1.0f, 0.5f, 0.0f,    // 0
-                                                0.1f, 0.1f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f,     // 1
-                                                -0.1f, 0.1f, 1.0f, 1.0f, 1.0f, 0.0f, 1.0f}};  // 2
-        std::vector<uint32_t> indices = {{0, 1, 2}};
-        meshTypes type = meshTypes::TRIANGLE;
-        m_vulkanMeshes.consume(type, triangleVertices, indices);
+        std::unordered_map<meshTypes, std::vector<std::string>> modelFilenames = {
+            {meshTypes::GROUND, {"assets/models/ground.obj", "assets/models/ground.mtl"}},
+            {meshTypes::GIRL, {"assets/models/girl.obj", "assets/models/girl.mtl"}},
+            {meshTypes::SKULL, {"assets/models/skull.obj", "assets/models/skull.mtl"}}};
 
-        std::vector<float> squareVertices = {{-0.1f, 0.1f, 1.0f, 1.0f, 1.0f, 0.0f, 1.0f,   // 0
-                                              -0.1f, -0.1f, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f,  // 1
-                                              0.1f, -0.1f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f,   // 2
-                                              0.1f, 0.1f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f}};  // 3
-        indices = {{0, 1, 2,
-                    2, 3, 0}};
-        type = meshTypes::SQUARE;
-        m_vulkanMeshes.consume(type, squareVertices, indices);
+        for (auto pair : modelFilenames) {
+            ObjMesh model(pair.second[0], pair.second[1], glm::mat4(1.0f));
+            m_vulkanMeshes.consume(pair.first, model.vertices, model.indices);
+        }
 
-        std::vector<float> starVertices = {{-0.1f, -0.05f, 1.0f, 1.0f, 1.0f, 0.0f, 0.25f,   // 0
-                                            -0.04f, -0.05f, 1.0f, 1.0f, 1.0f, 0.3f, 0.25f,  // 1
-                                            -0.06f, 0.0f, 1.0f, 1.0f, 1.0f, 0.2f, 0.5f,     // 2
-                                            0.0f, -0.1f, 1.0f, 1.0f, 1.0f, 0.5f, 0.0f,      // 3
-                                            0.04f, -0.05f, 1.0f, 1.0f, 1.0f, 0.7f, 0.25f,   // 4
-                                            0.1f, -0.05f, 1.0f, 1.0f, 1.0f, 1.0f, 0.25f,    // 5
-                                            0.06f, 0.0f, 1.0f, 1.0f, 1.0f, 0.8f, 0.5f,      // 6
-                                            0.08f, 0.1f, 1.0f, 1.0f, 1.0f, 0.9f, 1.0f,      // 7
-                                            0.0f, 0.02f, 1.0f, 1.0f, 1.0f, 0.5f, 0.6f,      // 8
-                                            -0.08f, 0.1f, 1.0f, 1.0f, 1.0f, 0.1f, 1.0f}};   // 9
-        indices = {{0, 1, 2,
-                    1, 3, 4,
-                    2, 1, 4,
-                    4, 5, 6,
-                    2, 4, 6,
-                    6, 7, 8,
-                    2, 6, 8,
-                    2, 8, 9}};
-        type = meshTypes::STAR;
-        m_vulkanMeshes.consume(type, starVertices, indices);
         m_vulkanMeshes.finalize(m_vulkanDevice, m_vulkanMainCommandBuffer);
-
         std::unordered_map<meshTypes, std::string> filenames = {
-            {meshTypes::TRIANGLE, "assets/textures/face.jpg"},
-            {meshTypes::SQUARE, "assets/textures/haus.jpg"},
-            {meshTypes::STAR, "assets/textures/noroi.png"},
+            {meshTypes::GROUND, "assets/textures/ground.jpg"},
+            {meshTypes::GIRL, "assets/textures/none.png"},
+            {meshTypes::SKULL, "assets/textures/skull.png"},
         };
 
         m_vulkanSwapchain.createMeshDescriptorPool(m_vulkanDevice);

@@ -1,9 +1,9 @@
 #pragma once
 
+#include "Core/Scene.h"
 #include "VulkanBuffer.h"
 #include "VulkanCommandBuffer.h"
 #include "VulkanDevice.h"
-#include "VulkanTypes.h"
 
 namespace Genesis {
     class VulkanVertexMenagerie {

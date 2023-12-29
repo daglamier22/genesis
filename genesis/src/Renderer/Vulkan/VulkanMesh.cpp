@@ -13,7 +13,7 @@ namespace Genesis {
     vk::VertexInputBindingDescription VulkanMesh::getBindingDescription() {
         vk::VertexInputBindingDescription bindingDescription{};
         bindingDescription.binding = 0;
-        bindingDescription.stride = 7 * sizeof(float);
+        bindingDescription.stride = 8 * sizeof(float);
         bindingDescription.inputRate = vk::VertexInputRate::eVertex;
 
         return bindingDescription;
@@ -30,20 +30,20 @@ namespace Genesis {
         // Position
         attributeDescriptions[0].binding = 0;
         attributeDescriptions[0].location = 0;
-        attributeDescriptions[0].format = vk::Format::eR32G32Sfloat;
+        attributeDescriptions[0].format = vk::Format::eR32G32B32Sfloat;
         attributeDescriptions[0].offset = 0;
 
         // Color
         attributeDescriptions[1].binding = 0;
         attributeDescriptions[1].location = 1;
         attributeDescriptions[1].format = vk::Format::eR32G32B32Sfloat;
-        attributeDescriptions[1].offset = 2 * sizeof(float);
+        attributeDescriptions[1].offset = 3 * sizeof(float);
 
         // TexCoord
         attributeDescriptions[2].binding = 0;
         attributeDescriptions[2].location = 2;
         attributeDescriptions[2].format = vk::Format::eR32G32Sfloat;
-        attributeDescriptions[2].offset = 5 * sizeof(float);
+        attributeDescriptions[2].offset = 6 * sizeof(float);
 
         return attributeDescriptions;
     }

@@ -75,11 +75,6 @@ namespace Genesis {
             glm::mat4 model;
     };
 
-    enum class meshTypes {
-        TRIANGLE,
-        SQUARE,
-        STAR
-    };
 }  // namespace Genesis
 
 namespace std {

@@ -11,7 +11,7 @@ namespace Genesis {
     }
 
     void VulkanVertexMenagerie::consume(meshTypes type, std::vector<float> vertexData, std::vector<uint32_t> indexData) {
-        int vertexCount = static_cast<int>(vertexData.size() / 7);
+        int vertexCount = static_cast<int>(vertexData.size() / 8);
         int indexCount = static_cast<int>(indexData.size());
         int lastIndex = static_cast<int>(m_indexLump.size());
 
@@ -91,6 +91,8 @@ namespace Genesis {
         // destroy staging buffer
         vulkanDevice.logicalDevice().destroyBuffer(stagingBuffer.buffer());
         vulkanDevice.logicalDevice().freeMemory(stagingBuffer.memory());
+
+        m_vertexLump.clear();
 
         GN_CORE_INFO("Vulkan vertex buffer created.");
     }

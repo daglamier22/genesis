@@ -325,11 +325,11 @@ namespace Genesis {
         // float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
 
         UniformBufferObject ubo{};
-        glm::vec3 eye = {1.0f, 0.0f, -1.0f};
-        glm::vec3 center = {0.0f, 0.0f, 0.0f};
-        glm::vec3 up = {0.0f, 0.0f, -1.0f};
+        glm::vec3 eye = {0.0f, 0.0f, 1.0f};
+        glm::vec3 center = {1.0f, 0.0f, 1.0f};
+        glm::vec3 up = {0.0f, 0.0f, 1.0f};
         ubo.view = glm::lookAt(eye, center, up);
-        ubo.projection = glm::perspective(glm::radians(45.0f), m_vkSwapchainExtent.width / (float)m_vkSwapchainExtent.height, 0.1f, 10.0f);
+        ubo.projection = glm::perspective(glm::radians(45.0f), m_vkSwapchainExtent.width / (float)m_vkSwapchainExtent.height, 0.1f, 100.0f);
         ubo.projection[1][1] *= -1;
         // ubo.viewProjection = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
 
@@ -339,14 +339,10 @@ namespace Genesis {
         memcpy(frame.cameraDataWriteLocation, &frame.cameraData, sizeof(UniformBufferObject));
 
         size_t i = 0;
-        for (glm::vec3& position : scene->trianglePositions) {
-            frame.modelTransforms[i++] = glm::translate(glm::mat4(1.0f), position);
-        }
-        for (glm::vec3& position : scene->squarePositions) {
-            frame.modelTransforms[i++] = glm::translate(glm::mat4(1.0f), position);
-        }
-        for (glm::vec3& position : scene->starPositions) {
-            frame.modelTransforms[i++] = glm::translate(glm::mat4(1.0f), position);
+        for (auto pair : scene->positions) {
+            for (glm::vec3& position : pair.second) {
+                frame.modelTransforms[i++] = glm::translate(glm::mat4(1.0f), position);
+            }
         }
         memcpy(frame.modelBufferWriteLocation, frame.modelTransforms.data(), i * sizeof(glm::mat4));
 
