@@ -28,7 +28,7 @@ namespace Genesis {
         m_indexOffset += vertexCount;
     }
 
-    void VulkanVertexMenagerie::finalize(VulkanDevice& vulkanDevice, vk::CommandBuffer commandBuffer) {
+    void VulkanVertexMenagerie::finalize(VulkanDevice& vulkanDevice, VulkanCommandBuffer& vulkanCommandBuffer) {
         // create staging buffer for vertices
         uint32_t bufferSize = sizeof(float) * m_vertexLump.size();
         VulkanBuffer stagingBuffer;
@@ -55,7 +55,7 @@ namespace Genesis {
                                     vk::MemoryPropertyFlagBits::eDeviceLocal);
 
         // fill vertex buffer by copying from staging
-        m_vertexBuffer.copyBufferFrom(stagingBuffer.buffer(), bufferSize, vulkanDevice, commandBuffer);
+        m_vertexBuffer.copyBufferFrom(stagingBuffer.buffer(), bufferSize, vulkanDevice, vulkanCommandBuffer);
 
         // destroy staging buffer
         vulkanDevice.logicalDevice().destroyBuffer(stagingBuffer.buffer());
@@ -86,7 +86,7 @@ namespace Genesis {
                                    vk::MemoryPropertyFlagBits::eDeviceLocal);
 
         // fill index buffer by copying from staging
-        m_indexBuffer.copyBufferFrom(stagingBuffer.buffer(), bufferSize, vulkanDevice, commandBuffer);
+        m_indexBuffer.copyBufferFrom(stagingBuffer.buffer(), bufferSize, vulkanDevice, vulkanCommandBuffer);
 
         // destroy staging buffer
         vulkanDevice.logicalDevice().destroyBuffer(stagingBuffer.buffer());

@@ -43,60 +43,21 @@ namespace Genesis {
         vulkanDevice.logicalDevice().bindBufferMemory(m_vkBuffer, m_vkBufferMemory, 0);
     }
 
-    void VulkanBuffer::copyBufferFrom(vk::Buffer srcBuffer, vk::DeviceSize size, VulkanDevice& vulkanDevice, vk::CommandBuffer commandBuffer) {
-        beginSingleTimeCommands(vulkanDevice, commandBuffer);
+    void VulkanBuffer::copyBufferFrom(vk::Buffer srcBuffer, vk::DeviceSize size, VulkanDevice& vulkanDevice, VulkanCommandBuffer& commandBuffer) {
+        commandBuffer.beginSingleTimeCommands(vulkanDevice);
 
         vk::BufferCopy copyRegion = {};
         copyRegion.srcOffset = 0;
         copyRegion.dstOffset = 0;
         copyRegion.size = size;
         try {
-            commandBuffer.copyBuffer(srcBuffer, m_vkBuffer, 1, &copyRegion);
+            commandBuffer.commandBuffer().copyBuffer(srcBuffer, m_vkBuffer, 1, &copyRegion);
         } catch (vk::SystemError err) {
             std::string errMsg = "Failed to copy buffer: ";
             GN_CORE_ERROR("{}{}", errMsg, err.what());
             throw std::runtime_error(errMsg + err.what());
         }
 
-        endSingleTimeCommands(vulkanDevice, commandBuffer);
-    }
-
-    void VulkanBuffer::beginSingleTimeCommands(VulkanDevice& vulkanDevice, vk::CommandBuffer commandBuffer) {
-        commandBuffer.reset();
-
-        vk::CommandBufferBeginInfo beginInfo = {};
-        beginInfo.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit;
-
-        try {
-            commandBuffer.begin(beginInfo);
-        } catch (vk::SystemError err) {
-            std::string errMsg = "Unable to being recording single use command buffer: ";
-            GN_CORE_ERROR("{}{}", errMsg, err.what());
-            throw std::runtime_error(errMsg + err.what());
-        }
-    }
-
-    void VulkanBuffer::endSingleTimeCommands(VulkanDevice& vulkanDevice, vk::CommandBuffer commandBuffer) {
-        try {
-            commandBuffer.end();
-        } catch (vk::SystemError err) {
-            std::string errMsg = "Failed to record single use command buffer: ";
-            GN_CORE_ERROR("{}{}", errMsg, err.what());
-            throw std::runtime_error(errMsg + err.what());
-        }
-
-        vk::SubmitInfo submitInfo = {};
-        submitInfo.commandBufferCount = 1;
-        submitInfo.pCommandBuffers = &commandBuffer;
-
-        try {
-            auto result = vulkanDevice.graphicsQueue().submit(1, &submitInfo, nullptr);
-        } catch (vk::SystemError err) {
-            std::string errMsg = "Failed to submit sungle use command buffer: ";
-            GN_CORE_ERROR("{}{}", errMsg, err.what());
-            throw std::runtime_error(errMsg + err.what());
-        }
-
-        vulkanDevice.graphicsQueue().waitIdle();
+        commandBuffer.endSingleTimeCommands(vulkanDevice);
     }
 }  // namespace Genesis

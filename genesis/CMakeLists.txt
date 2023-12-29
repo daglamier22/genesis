@@ -27,6 +27,7 @@ add_library(genesis
     src/Renderer/Vulkan/VulkanBuffer.cpp src/Renderer/Vulkan/VulkanBuffer.h
     src/Renderer/Vulkan/VulkanVertexMenagerie.cpp src/Renderer/Vulkan/VulkanVertexMenagerie.h
     src/Renderer/Vulkan/VulkanTexture.cpp src/Renderer/Vulkan/VulkanTexture.h
+    src/Renderer/Vulkan/VulkanCommandBuffer.cpp src/Renderer/Vulkan/VulkanCommandBuffer.h
 )
 
 target_link_libraries(genesis quill xcb xcb-util xcb-keysyms glfw glm vulkan)

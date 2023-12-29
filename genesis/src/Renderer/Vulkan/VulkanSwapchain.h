@@ -3,6 +3,7 @@
 #include "Core/Scene.h"
 #include "Platform/GLFWWindow.h"
 #include "VulkanBuffer.h"
+#include "VulkanCommandBuffer.h"
 #include "VulkanDevice.h"
 #include "VulkanImage.h"
 #include "VulkanTypes.h"
@@ -12,7 +13,7 @@ namespace Genesis {
             VulkanImage vulkanImage;
             vk::Framebuffer framebuffer;
 
-            vk::CommandBuffer commandBuffer;
+            VulkanCommandBuffer vulkanCommandBuffer;
 
             vk::Semaphore imageAvailableSemaphore;
             vk::Semaphore renderFinishedSemaphore;
@@ -49,7 +50,7 @@ namespace Genesis {
             vk::DescriptorPool const& meshDescriptorPool() const { return m_vkMeshDescriptorPool; }
 
             void createSwapChain(VulkanDevice& vulkanDevice, const vk::SurfaceKHR& surface, std::shared_ptr<Window> window);
-            void createFrameResources(VulkanDevice& vulkanDevice, vk::RenderPass renderPass, vk::CommandPool commandPool, vk::CommandBuffer commandBuffer);
+            void createFrameResources(VulkanDevice& vulkanDevice, vk::RenderPass renderPass, vk::CommandPool commandPool, VulkanCommandBuffer& vulkanCommandBuffer);
             void createDescriptorSetLayouts(VulkanDevice& vulkanDevice);
             void createFrameDescriptorPool(VulkanDevice& vulkanDevice);
             void createMeshDescriptorPool(VulkanDevice& vulkanDevice);
@@ -61,7 +62,7 @@ namespace Genesis {
                                    std::shared_ptr<Window> window,
                                    vk::RenderPass renderpass,
                                    vk::CommandPool commandPool,
-                                   vk::CommandBuffer commandBuffer);
+                                   VulkanCommandBuffer& vulkanCommandBuffer);
             void cleanupSwapChain(VulkanDevice& vulkanDevice, vk::CommandPool commandPool);
             vk::Format findSupportedFormat(VulkanDevice& vulkanDevice,
                                            const std::vector<vk::Format>& candidates,
@@ -72,7 +73,7 @@ namespace Genesis {
         private:
             void createImageViews(VulkanDevice& vulkanDevice);
             void createColorResources(VulkanDevice& vulkanDevice);
-            void createDepthResources(VulkanDevice& vulkanDevice, vk::CommandBuffer commandBuffer);
+            void createDepthResources(VulkanDevice& vulkanDevice, VulkanCommandBuffer& vulkanCommandBuffer);
             void createFramebuffers(VulkanDevice& vulkanDevice, vk::RenderPass renderPass);
             void createCommandBuffers(VulkanDevice& vulkanDevice, vk::CommandPool& commandPool);
             void createSyncObjects(VulkanDevice& vulkanDevice);

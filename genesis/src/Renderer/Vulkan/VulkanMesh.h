@@ -1,6 +1,7 @@
 #pragma once
 
 #include "VulkanBuffer.h"
+#include "VulkanCommandBuffer.h"
 #include "VulkanTypes.h"
 
 namespace Genesis {
@@ -14,7 +15,7 @@ namespace Genesis {
             static vk::VertexInputBindingDescription getBindingDescription();
             static std::vector<vk::VertexInputAttributeDescription> getAttributeDescriptions();
 
-            void createMesh(VulkanDevice& vulkanDevice, vk::CommandBuffer commandBuffer, std::vector<float> vertices);
+            void createMesh(VulkanDevice& vulkanDevice, VulkanCommandBuffer& vulkanCommandBuffer, std::vector<float> vertices);
 
         private:
             VulkanBuffer m_vertexBuffer;

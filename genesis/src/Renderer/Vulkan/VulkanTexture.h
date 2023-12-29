@@ -2,6 +2,7 @@
 
 #include <stb_image.h>
 
+#include "VulkanCommandBuffer.h"
 #include "VulkanImage.h"
 #include "VulkanTypes.h"
 
@@ -10,13 +11,13 @@ namespace Genesis {
         public:
             VulkanTexture(VulkanDevice& vulkanDevice,
                           std::string filename,
-                          vk::CommandBuffer commandBuffer,
+                          VulkanCommandBuffer& vulkanCommandBuffer,
                           vk::Queue queue,
                           vk::DescriptorSetLayout layout,
                           vk::DescriptorPool descriptorPool);
             ~VulkanTexture();
 
-            void use(vk::CommandBuffer commandBuffer, vk::PipelineLayout pipelineLayout);
+            void use(VulkanCommandBuffer& vulkanCommandBuffer, vk::PipelineLayout pipelineLayout);
 
         private:
             void load();
@@ -41,7 +42,7 @@ namespace Genesis {
             vk::DescriptorSet m_vkDescriptorSet;
             vk::DescriptorPool m_vkDescriptorPool;
 
-            vk::CommandBuffer m_vkCommandBuffer;
+            VulkanCommandBuffer m_vulkanCommandBuffer;
             vk::Queue queue;
     };
 }  // namespace Genesis

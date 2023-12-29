@@ -48,7 +48,7 @@ namespace Genesis {
         return attributeDescriptions;
     }
 
-    void VulkanMesh::createMesh(VulkanDevice& vulkanDevice, vk::CommandBuffer commandBuffer, std::vector<float> vertices) {
+    void VulkanMesh::createMesh(VulkanDevice& vulkanDevice, VulkanCommandBuffer& vulkanCommandBuffer, std::vector<float> vertices) {
         uint32_t bufferSize = sizeof(float) * vertices.size();
 
         VulkanBuffer stagingBuffer;
@@ -72,7 +72,7 @@ namespace Genesis {
                                     vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eVertexBuffer,
                                     vk::MemoryPropertyFlagBits::eDeviceLocal);
 
-        m_vertexBuffer.copyBufferFrom(stagingBuffer.buffer(), bufferSize, vulkanDevice, commandBuffer);
+        m_vertexBuffer.copyBufferFrom(stagingBuffer.buffer(), bufferSize, vulkanDevice, vulkanCommandBuffer);
 
         vulkanDevice.logicalDevice().destroyBuffer(stagingBuffer.buffer());
         vulkanDevice.logicalDevice().freeMemory(stagingBuffer.memory());

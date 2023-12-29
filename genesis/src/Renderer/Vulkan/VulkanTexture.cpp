@@ -13,13 +13,13 @@
 namespace Genesis {
     VulkanTexture::VulkanTexture(VulkanDevice& vulkanDevice,
                                  std::string filename,
-                                 vk::CommandBuffer commandBuffer,
+                                 VulkanCommandBuffer& vulkanCommandBuffer,
                                  vk::Queue queue,
                                  vk::DescriptorSetLayout layout,
                                  vk::DescriptorPool descriptorPool) {
         m_vkLogicalDevice = vulkanDevice.logicalDevice();
         m_filename = filename;
-        m_vkCommandBuffer = commandBuffer;
+        m_vulkanCommandBuffer = vulkanCommandBuffer;
         m_vkDescriptorPool = descriptorPool;
         m_vkLayout = layout;
 
@@ -61,8 +61,8 @@ namespace Genesis {
         m_vkLogicalDevice.destroySampler(m_vkSampler);
     }
 
-    void VulkanTexture::use(vk::CommandBuffer commandBuffer, vk::PipelineLayout pipelineLayout) {
-        commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 1, m_vkDescriptorSet, nullptr);
+    void VulkanTexture::use(VulkanCommandBuffer& vulkanCommandBuffer, vk::PipelineLayout pipelineLayout) {
+        vulkanCommandBuffer.commandBuffer().bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 1, m_vkDescriptorSet, nullptr);
     }
 
     void VulkanTexture::load() {
@@ -101,13 +101,13 @@ namespace Genesis {
                                              vk::ImageLayout::eUndefined,
                                              vk::ImageLayout::eTransferDstOptimal,
                                              m_vkMipLevels,
-                                             m_vkCommandBuffer);
+                                             m_vulkanCommandBuffer);
 
         m_textureImage.copyBufferToImage(vulkanDevice,
                                          stagingBuffer.buffer(),
                                          static_cast<uint32_t>(m_width),
                                          static_cast<uint32_t>(m_height),
-                                         m_vkCommandBuffer);
+                                         m_vulkanCommandBuffer);
 
         m_textureImage.transitionImageLayout(vulkanDevice,
                                              m_textureImage.image(),
@@ -115,7 +115,7 @@ namespace Genesis {
                                              vk::ImageLayout::eTransferDstOptimal,
                                              vk::ImageLayout::eShaderReadOnlyOptimal,
                                              m_vkMipLevels,
-                                             m_vkCommandBuffer);
+                                             m_vulkanCommandBuffer);
 
         vulkanDevice.logicalDevice().destroyBuffer(stagingBuffer.buffer());
         vulkanDevice.logicalDevice().freeMemory(stagingBuffer.memory());

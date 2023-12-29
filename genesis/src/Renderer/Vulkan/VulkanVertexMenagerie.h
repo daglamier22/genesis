@@ -1,6 +1,7 @@
 #pragma once
 
 #include "VulkanBuffer.h"
+#include "VulkanCommandBuffer.h"
 #include "VulkanDevice.h"
 #include "VulkanTypes.h"
 
@@ -14,7 +15,7 @@ namespace Genesis {
             VulkanBuffer const& indexBuffer() const { return m_indexBuffer; }
 
             void consume(meshTypes type, std::vector<float> vertexData, std::vector<uint32_t> indexData);
-            void finalize(VulkanDevice& vulkanDevice, vk::CommandBuffer commandBuffer);
+            void finalize(VulkanDevice& vulkanDevice, VulkanCommandBuffer& vulkanCommandBuffer);
 
             std::unordered_map<meshTypes, int> m_firstIndices;
             std::unordered_map<meshTypes, int> m_indexCounts;

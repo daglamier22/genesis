@@ -1,5 +1,6 @@
 #pragma once
 
+#include "VulkanCommandBuffer.h"
 #include "VulkanDevice.h"
 #include "VulkanTypes.h"
 
@@ -16,12 +17,9 @@ namespace Genesis {
                               vk::DeviceSize size,
                               vk::BufferUsageFlags usage,
                               vk::MemoryPropertyFlags properties);
-            void copyBufferFrom(vk::Buffer srcBuffer, vk::DeviceSize size, VulkanDevice& vulkanDevice, vk::CommandBuffer commandBuffer);
+            void copyBufferFrom(vk::Buffer srcBuffer, vk::DeviceSize size, VulkanDevice& vulkanDevice, VulkanCommandBuffer& commandBuffer);
 
         private:
-            void beginSingleTimeCommands(VulkanDevice& vulkanDevice, vk::CommandBuffer commandBuffer);
-            void endSingleTimeCommands(VulkanDevice& vulkanDevice, vk::CommandBuffer commandBuffer);
-
             vk::Buffer m_vkBuffer;
             vk::DeviceMemory m_vkBufferMemory;
     };

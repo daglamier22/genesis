@@ -98,8 +98,8 @@ namespace Genesis {
                                             vk::ImageLayout oldLayout,
                                             vk::ImageLayout newLayout,
                                             uint32_t mipLevels,
-                                            vk::CommandBuffer commandBuffer) {
-        beginSingleTimeCommands(vulkanDevice, commandBuffer);
+                                            VulkanCommandBuffer& vulkanCommandBuffer) {
+        vulkanCommandBuffer.beginSingleTimeCommands(vulkanDevice);
 
         vk::ImageMemoryBarrier barrier = {};
         barrier.oldLayout = oldLayout;
@@ -150,18 +150,22 @@ namespace Genesis {
             throw std::runtime_error(errMsg);
         }
 
-        commandBuffer.pipelineBarrier(sourceStage,
-                                      destinationStage,
-                                      vk::DependencyFlags(),
-                                      nullptr,
-                                      nullptr,
-                                      barrier);
+        vulkanCommandBuffer.commandBuffer().pipelineBarrier(sourceStage,
+                                                            destinationStage,
+                                                            vk::DependencyFlags(),
+                                                            nullptr,
+                                                            nullptr,
+                                                            barrier);
 
-        endSingleTimeCommands(vulkanDevice, commandBuffer);
+        vulkanCommandBuffer.endSingleTimeCommands(vulkanDevice);
     }
 
-    void VulkanImage::copyBufferToImage(VulkanDevice& vulkanDevice, vk::Buffer buffer, uint32_t width, uint32_t height, vk::CommandBuffer commandBuffer) {
-        beginSingleTimeCommands(vulkanDevice, commandBuffer);
+    void VulkanImage::copyBufferToImage(VulkanDevice& vulkanDevice,
+                                        vk::Buffer buffer,
+                                        uint32_t width,
+                                        uint32_t height,
+                                        VulkanCommandBuffer& vulkanCommandBuffer) {
+        vulkanCommandBuffer.beginSingleTimeCommands(vulkanDevice);
 
         vk::BufferImageCopy region = {};
         region.bufferOffset = 0;
@@ -176,12 +180,12 @@ namespace Genesis {
         region.imageOffset = vk::Offset3D(0, 0, 0);
         region.imageExtent = vk::Extent3D(width, height, 1);
 
-        commandBuffer.copyBufferToImage(buffer,
-                                        m_vkImage,
-                                        vk::ImageLayout::eTransferDstOptimal,
-                                        region);
+        vulkanCommandBuffer.commandBuffer().copyBufferToImage(buffer,
+                                                              m_vkImage,
+                                                              vk::ImageLayout::eTransferDstOptimal,
+                                                              region);
 
-        endSingleTimeCommands(vulkanDevice, commandBuffer);
+        vulkanCommandBuffer.endSingleTimeCommands(vulkanDevice);
     }
 
     bool VulkanImage::hasStencilComponent(vk::Format format) {
@@ -201,73 +205,5 @@ namespace Genesis {
     void VulkanImage::freeImageMemory(VulkanDevice& vulkanDevice) {
         vulkanDevice.logicalDevice().freeMemory(m_vkImageMemory);
         GN_CORE_TRACE("Vulkan image memory freed successfully.");
-    }
-
-    // TODO: These are here temp until they can be moved to a different class
-    // vk::CommandBuffer VulkanImage::beginSingleTimeCommands(VulkanDevice& vulkanDevice, vk::CommandPool commandPool) {
-    //     vk::CommandBufferAllocateInfo allocInfo = {};
-    //     allocInfo.level = vk::CommandBufferLevel::ePrimary;
-    //     allocInfo.commandPool = commandPool;
-    //     allocInfo.commandBufferCount = 1;
-
-    //     std::vector<vk::CommandBuffer> commandBuffer = vulkanDevice.logicalDevice().allocateCommandBuffers(allocInfo);
-
-    //     vk::CommandBufferBeginInfo beginInfo = {};
-    //     beginInfo.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit;
-
-    //     commandBuffer[0].begin(beginInfo);
-
-    //     return commandBuffer[0];
-    // }
-
-    // void VulkanImage::endSingleTimeCommands(vk::CommandBuffer commandBuffer, VulkanDevice& vulkanDevice, vk::CommandPool commandPool) {
-    //     vkEndCommandBuffer(commandBuffer);
-
-    //     vk::SubmitInfo submitInfo = {};
-    //     submitInfo.commandBufferCount = 1;
-    //     submitInfo.pCommandBuffers = &commandBuffer;
-
-    //     vulkanDevice.graphicsQueue().submit(submitInfo, nullptr);
-    //     vulkanDevice.graphicsQueue().waitIdle();
-
-    //     vulkanDevice.logicalDevice().freeCommandBuffers(commandPool, commandBuffer);
-    // }
-    void VulkanImage::beginSingleTimeCommands(VulkanDevice& vulkanDevice, vk::CommandBuffer commandBuffer) {
-        commandBuffer.reset();
-
-        vk::CommandBufferBeginInfo beginInfo = {};
-        beginInfo.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit;
-
-        try {
-            commandBuffer.begin(beginInfo);
-        } catch (vk::SystemError err) {
-            std::string errMsg = "Unable to being recording single use command buffer: ";
-            GN_CORE_ERROR("{}{}", errMsg, err.what());
-            throw std::runtime_error(errMsg + err.what());
-        }
-    }
-
-    void VulkanImage::endSingleTimeCommands(VulkanDevice& vulkanDevice, vk::CommandBuffer commandBuffer) {
-        try {
-            commandBuffer.end();
-        } catch (vk::SystemError err) {
-            std::string errMsg = "Failed to record single use command buffer: ";
-            GN_CORE_ERROR("{}{}", errMsg, err.what());
-            throw std::runtime_error(errMsg + err.what());
-        }
-
-        vk::SubmitInfo submitInfo = {};
-        submitInfo.commandBufferCount = 1;
-        submitInfo.pCommandBuffers = &commandBuffer;
-
-        try {
-            auto result = vulkanDevice.graphicsQueue().submit(1, &submitInfo, nullptr);
-        } catch (vk::SystemError err) {
-            std::string errMsg = "Failed to submit sungle use command buffer: ";
-            GN_CORE_ERROR("{}{}", errMsg, err.what());
-            throw std::runtime_error(errMsg + err.what());
-        }
-
-        vulkanDevice.graphicsQueue().waitIdle();
     }
 }  // namespace Genesis

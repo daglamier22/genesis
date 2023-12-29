@@ -1,5 +1,6 @@
 #pragma once
 
+#include "VulkanCommandBuffer.h"
 #include "VulkanDevice.h"
 #include "VulkanTypes.h"
 
@@ -34,8 +35,12 @@ namespace Genesis {
                                        vk::ImageLayout oldLayout,
                                        vk::ImageLayout newLayout,
                                        uint32_t mipLevels,
-                                       vk::CommandBuffer commandBuffer);
-            void copyBufferToImage(VulkanDevice& vulkanDevice, vk::Buffer buffer, uint32_t width, uint32_t height, vk::CommandBuffer commandBuffer);
+                                       VulkanCommandBuffer& vulkanCommandBuffer);
+            void copyBufferToImage(VulkanDevice& vulkanDevice,
+                                   vk::Buffer buffer,
+                                   uint32_t width,
+                                   uint32_t height,
+                                   VulkanCommandBuffer& vulkanCommandBuffer);
 
             void destroyImage(VulkanDevice& vulkanDevice);
             void destroyImageView(VulkanDevice& vulkanDevice);
@@ -43,9 +48,6 @@ namespace Genesis {
 
         private:
             bool hasStencilComponent(vk::Format format);
-
-            void beginSingleTimeCommands(VulkanDevice& vulkanDevice, vk::CommandBuffer commandBuffer);
-            void endSingleTimeCommands(VulkanDevice& vulkanDevice, vk::CommandBuffer commandBuffer);
 
             vk::Image m_vkImage = {};
             vk::ImageView m_vkImageView;

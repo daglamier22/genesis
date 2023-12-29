@@ -65,10 +65,13 @@ namespace Genesis {
         GN_CORE_INFO("Vulkan swapchain created successfully.");
     }
 
-    void VulkanSwapchain::createFrameResources(VulkanDevice& vulkanDevice, vk::RenderPass renderpass, vk::CommandPool commandPool, vk::CommandBuffer commandBuffer) {
+    void VulkanSwapchain::createFrameResources(VulkanDevice& vulkanDevice,
+                                               vk::RenderPass renderpass,
+                                               vk::CommandPool commandPool,
+                                               VulkanCommandBuffer& vulkanCommandBuffer) {
         createImageViews(vulkanDevice);
         createColorResources(vulkanDevice);
-        createDepthResources(vulkanDevice, commandBuffer);
+        createDepthResources(vulkanDevice, vulkanCommandBuffer);
         createFramebuffers(vulkanDevice, renderpass);
         createCommandBuffers(vulkanDevice, commandPool);
         createSyncObjects(vulkanDevice);
@@ -203,7 +206,7 @@ namespace Genesis {
         GN_CORE_INFO("Vulkan color resources created successfuly.");
     }
 
-    void VulkanSwapchain::createDepthResources(VulkanDevice& vulkanDevice, vk::CommandBuffer commandBuffer) {
+    void VulkanSwapchain::createDepthResources(VulkanDevice& vulkanDevice, VulkanCommandBuffer& vulkanCommandBuffer) {
         m_vkDepthFormat = findDepthFormat(vulkanDevice);
 
         m_depthImage.createImage(vulkanDevice,
@@ -227,7 +230,7 @@ namespace Genesis {
                                            vk::ImageLayout::eUndefined,
                                            vk::ImageLayout::eDepthStencilAttachmentOptimal,
                                            1,
-                                           commandBuffer);
+                                           vulkanCommandBuffer);
 
         GN_CORE_INFO("Vulkan depth resources created successfully.");
     }
@@ -257,23 +260,9 @@ namespace Genesis {
     }
 
     void VulkanSwapchain::createCommandBuffers(VulkanDevice& vulkanDevice, vk::CommandPool& commandPool) {
-        vk::CommandBufferAllocateInfo allocInfo = {};
-        allocInfo.commandPool = commandPool;
-        allocInfo.level = vk::CommandBufferLevel::ePrimary;
-        allocInfo.commandBufferCount = m_swapchainFrames.size();
-
-        try {
-            auto commandBuffers = vulkanDevice.logicalDevice().allocateCommandBuffers(allocInfo);
-            for (auto i = 0; i < m_swapchainFrames.size(); ++i) {
-                m_swapchainFrames[i].commandBuffer = commandBuffers[i];
-            }
-        } catch (vk::SystemError err) {
-            std::string errMsg = "Failed to allocate command buffers: ";
-            GN_CORE_ERROR("{}{}", errMsg, err.what());
-            throw std::runtime_error(errMsg + err.what());
+        for (size_t i = 0; i < m_swapchainFrames.size(); ++i) {
+            m_swapchainFrames[i].vulkanCommandBuffer.create(vulkanDevice, commandPool);
         }
-
-        GN_CORE_INFO("Vulkan command buffer created successfully.");
     }
 
     void VulkanSwapchain::createSyncObjects(VulkanDevice& vulkanDevice) {
@@ -493,7 +482,12 @@ namespace Genesis {
         }
     }
 
-    void VulkanSwapchain::recreateSwapChain(VulkanDevice& vulkanDevice, const vk::SurfaceKHR& surface, std::shared_ptr<Window> window, vk::RenderPass renderPass, vk::CommandPool commandPool, vk::CommandBuffer commandBuffer) {
+    void VulkanSwapchain::recreateSwapChain(VulkanDevice& vulkanDevice,
+                                            const vk::SurfaceKHR& surface,
+                                            std::shared_ptr<Window> window,
+                                            vk::RenderPass renderPass,
+                                            vk::CommandPool commandPool,
+                                            VulkanCommandBuffer& vulkanCommandBuffer) {
         std::shared_ptr<GLFWWindow> glfwwindow = std::dynamic_pointer_cast<GLFWWindow>(window);
         int width = (int)glfwwindow->getWindowWidth();
         int height = (int)glfwwindow->getWindowHeight();
@@ -506,7 +500,7 @@ namespace Genesis {
         cleanupSwapChain(vulkanDevice, commandPool);
 
         createSwapChain(vulkanDevice, surface, window);
-        createFrameResources(vulkanDevice, renderPass, commandPool, commandBuffer);
+        createFrameResources(vulkanDevice, renderPass, commandPool, vulkanCommandBuffer);
 
         GN_CORE_INFO("Vulkan swapchain recreated.");
     }
@@ -533,7 +527,7 @@ namespace Genesis {
             vulkanDevice.logicalDevice().destroySemaphore(frame.renderFinishedSemaphore);
             vulkanDevice.logicalDevice().destroySemaphore(frame.imageAvailableSemaphore);
 
-            vulkanDevice.logicalDevice().freeCommandBuffers(commandPool, frame.commandBuffer);
+            vulkanDevice.logicalDevice().freeCommandBuffers(commandPool, frame.vulkanCommandBuffer.commandBuffer());
             vulkanDevice.logicalDevice().destroyFramebuffer(frame.framebuffer);
             frame.vulkanImage.destroyImageView(vulkanDevice);
         }

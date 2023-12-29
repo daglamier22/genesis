@@ -4,6 +4,7 @@
 #include "Core/Logger.h"
 #include "Core/Renderer.h"
 #include "VulkanBuffer.h"
+#include "VulkanCommandBuffer.h"
 #include "VulkanDevice.h"
 #include "VulkanMesh.h"
 #include "VulkanPipeline.h"
@@ -43,8 +44,8 @@ namespace Genesis {
             void createCommandPool();
             void createCommandBuffers();
             void renderFrame(std::shared_ptr<Scene> scene);
-            void recordCommandBuffer(vk::CommandBuffer commandBuffer, uint32_t imageIndex, std::shared_ptr<Scene> scene);
-            void renderObjects(vk::CommandBuffer commandBuffer, meshTypes objectType, uint32_t& startInstance, uint32_t instanceCount);
+            void recordCommandBuffer(VulkanCommandBuffer& commandBuffer, uint32_t imageIndex, std::shared_ptr<Scene> scene);
+            void renderObjects(VulkanCommandBuffer& commandBuffer, meshTypes objectType, uint32_t& startInstance, uint32_t instanceCount);
 
             // void loadModel();
             void createAssets();
@@ -57,7 +58,7 @@ namespace Genesis {
             VulkanPipeline m_vulkanPipeline;
 
             vk::CommandPool m_vkCommandPool;
-            vk::CommandBuffer m_vkMainCommandBuffer;
+            VulkanCommandBuffer m_vulkanMainCommandBuffer;
 
             VulkanVertexMenagerie m_vulkanMeshes;
             std::unordered_map<meshTypes, VulkanTexture*> m_materials;

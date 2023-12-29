@@ -35,7 +35,7 @@ namespace Genesis {
         m_vulkanPipeline.createGraphicsPipeline(m_vulkanDevice, m_vulkanSwapchain);
         createCommandPool();
         createCommandBuffers();
-        m_vulkanSwapchain.createFrameResources(m_vulkanDevice, m_vulkanPipeline.renderPass(), m_vkCommandPool, m_vkMainCommandBuffer);
+        m_vulkanSwapchain.createFrameResources(m_vulkanDevice, m_vulkanPipeline.renderPass(), m_vkCommandPool, m_vulkanMainCommandBuffer);
         // loadModel();
         createAssets();
         EventSystem::registerEvent(EventType::WindowResize, this, GN_BIND_EVENT_FN(VulkanRenderer::onResizeEvent));
@@ -216,20 +216,7 @@ namespace Genesis {
     }
 
     void VulkanRenderer::createCommandBuffers() {
-        vk::CommandBufferAllocateInfo allocInfo = {};
-        allocInfo.commandPool = m_vkCommandPool;
-        allocInfo.level = vk::CommandBufferLevel::ePrimary;
-        allocInfo.commandBufferCount = 1;
-
-        try {
-            m_vkMainCommandBuffer = m_vulkanDevice.logicalDevice().allocateCommandBuffers(allocInfo)[0];
-        } catch (vk::SystemError err) {
-            std::string errMsg = "Failed to allocate command buffers: ";
-            GN_CORE_ERROR("{}{}", errMsg, err.what());
-            throw std::runtime_error(errMsg + err.what());
-        }
-
-        GN_CORE_INFO("Vulkan command buffer created successfully.");
+        m_vulkanMainCommandBuffer.create(m_vulkanDevice, m_vkCommandPool);
     }
 
     void VulkanRenderer::renderFrame(std::shared_ptr<Scene> scene) {
@@ -248,7 +235,7 @@ namespace Genesis {
             auto result = m_vulkanDevice.logicalDevice().acquireNextImageKHR(m_vulkanSwapchain.swapchain(), UINT64_MAX, currentFrame.imageAvailableSemaphore, nullptr);
             imageIndex = result.value;
         } catch (vk::OutOfDateKHRError err) {
-            m_vulkanSwapchain.recreateSwapChain(m_vulkanDevice, m_vkSurface, m_window, m_vulkanPipeline.renderPass(), m_vkCommandPool, m_vkMainCommandBuffer);
+            m_vulkanSwapchain.recreateSwapChain(m_vulkanDevice, m_vkSurface, m_window, m_vulkanPipeline.renderPass(), m_vkCommandPool, m_vulkanMainCommandBuffer);
             return;
         } catch (vk::SystemError err) {
             std::string errMsg = "Failed to aquire swap chain image: ";
@@ -265,7 +252,7 @@ namespace Genesis {
             throw std::runtime_error(errMsg + err.what());
         }
 
-        m_vulkanSwapchain.swapchainFrames()[m_currentFrame].commandBuffer.reset();
+        m_vulkanSwapchain.swapchainFrames()[m_currentFrame].vulkanCommandBuffer.commandBuffer().reset();
 
         try {
             m_vulkanSwapchain.prepareFrame(m_vulkanDevice, m_currentFrame, scene);
@@ -273,7 +260,7 @@ namespace Genesis {
             GN_CORE_ERROR("{}", err.what());
         }
 
-        recordCommandBuffer(currentFrame.commandBuffer, imageIndex, scene);
+        recordCommandBuffer(currentFrame.vulkanCommandBuffer, imageIndex, scene);
 
         vk::SubmitInfo submitInfo = {};
 
@@ -284,7 +271,7 @@ namespace Genesis {
         submitInfo.pWaitDstStageMask = waitStages;
 
         submitInfo.commandBufferCount = 1;
-        submitInfo.pCommandBuffers = &currentFrame.commandBuffer;
+        submitInfo.pCommandBuffers = &currentFrame.vulkanCommandBuffer.commandBuffer();
 
         vk::Semaphore signalSemaphores[] = {currentFrame.renderFinishedSemaphore};
         submitInfo.signalSemaphoreCount = 1;
@@ -311,11 +298,11 @@ namespace Genesis {
             auto result = m_vulkanDevice.presentQueue().presentKHR(presentInfo);
             if (result == vk::Result::eSuboptimalKHR || m_framebufferResized) {
                 m_framebufferResized = false;
-                m_vulkanSwapchain.recreateSwapChain(m_vulkanDevice, m_vkSurface, m_window, m_vulkanPipeline.renderPass(), m_vkCommandPool, m_vkMainCommandBuffer);
+                m_vulkanSwapchain.recreateSwapChain(m_vulkanDevice, m_vkSurface, m_window, m_vulkanPipeline.renderPass(), m_vkCommandPool, m_vulkanMainCommandBuffer);
             }
         } catch (vk::OutOfDateKHRError err) {
             m_framebufferResized = false;
-            m_vulkanSwapchain.recreateSwapChain(m_vulkanDevice, m_vkSurface, m_window, m_vulkanPipeline.renderPass(), m_vkCommandPool, m_vkMainCommandBuffer);
+            m_vulkanSwapchain.recreateSwapChain(m_vulkanDevice, m_vkSurface, m_window, m_vulkanPipeline.renderPass(), m_vkCommandPool, m_vulkanMainCommandBuffer);
         } catch (vk::SystemError err) {
             std::string errMsg = "Failed to present swap chain image: ";
             GN_CORE_ERROR("{}{}", errMsg, err.what());
@@ -325,12 +312,12 @@ namespace Genesis {
         m_currentFrame = (m_currentFrame + 1) % m_vulkanSwapchain.swapchainFrames().size();
     }
 
-    void VulkanRenderer::recordCommandBuffer(vk::CommandBuffer commandBuffer, uint32_t imageIndex, std::shared_ptr<Scene> scene) {
+    void VulkanRenderer::recordCommandBuffer(VulkanCommandBuffer& vulkanCommandBuffer, uint32_t imageIndex, std::shared_ptr<Scene> scene) {
         vk::CommandBufferBeginInfo beginInfo = {};
         beginInfo.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit;
 
         try {
-            commandBuffer.begin(beginInfo);
+            vulkanCommandBuffer.commandBuffer().begin(beginInfo);
         } catch (vk::SystemError err) {
             std::string errMsg = "Unable to being recording command buffer: ";
             GN_CORE_ERROR("{}{}", errMsg, err.what());
@@ -351,9 +338,9 @@ namespace Genesis {
         renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
         renderPassInfo.pClearValues = clearValues.data();
 
-        commandBuffer.beginRenderPass(renderPassInfo, vk::SubpassContents::eInline);
+        vulkanCommandBuffer.commandBuffer().beginRenderPass(renderPassInfo, vk::SubpassContents::eInline);
 
-        commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, m_vulkanPipeline.pipeline());
+        vulkanCommandBuffer.commandBuffer().bindPipeline(vk::PipelineBindPoint::eGraphics, m_vulkanPipeline.pipeline());
 
         // vk::Viewport viewport = {};
         // viewport.x = 0.0f;
@@ -372,34 +359,34 @@ namespace Genesis {
 
         vk::Buffer vertexBuffers[] = {m_vulkanMeshes.vertexBuffer().buffer()};
         vk::DeviceSize offsets[] = {0};
-        commandBuffer.bindVertexBuffers(0, 1, vertexBuffers, offsets);
-        commandBuffer.bindIndexBuffer(m_vulkanMeshes.indexBuffer().buffer(), 0, vk::IndexType::eUint32);
+        vulkanCommandBuffer.commandBuffer().bindVertexBuffers(0, 1, vertexBuffers, offsets);
+        vulkanCommandBuffer.commandBuffer().bindIndexBuffer(m_vulkanMeshes.indexBuffer().buffer(), 0, vk::IndexType::eUint32);
 
-        commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics,
-                                         m_vulkanPipeline.layout(),
-                                         0,
-                                         1,
-                                         &m_vulkanSwapchain.swapchainFrames()[m_currentFrame].descriptorSet,
-                                         0,
-                                         nullptr);
+        vulkanCommandBuffer.commandBuffer().bindDescriptorSets(vk::PipelineBindPoint::eGraphics,
+                                                               m_vulkanPipeline.layout(),
+                                                               0,
+                                                               1,
+                                                               &m_vulkanSwapchain.swapchainFrames()[m_currentFrame].descriptorSet,
+                                                               0,
+                                                               nullptr);
 
         uint32_t startInstance = 0;
         // Triangles
         uint32_t instanceCount = static_cast<uint32_t>(scene->trianglePositions.size());
-        renderObjects(commandBuffer, meshTypes::TRIANGLE, startInstance, instanceCount);
+        renderObjects(vulkanCommandBuffer, meshTypes::TRIANGLE, startInstance, instanceCount);
 
         // Squares
         instanceCount = static_cast<uint32_t>(scene->squarePositions.size());
-        renderObjects(commandBuffer, meshTypes::SQUARE, startInstance, instanceCount);
+        renderObjects(vulkanCommandBuffer, meshTypes::SQUARE, startInstance, instanceCount);
 
         // Stars
         instanceCount = static_cast<uint32_t>(scene->starPositions.size());
-        renderObjects(commandBuffer, meshTypes::STAR, startInstance, instanceCount);
+        renderObjects(vulkanCommandBuffer, meshTypes::STAR, startInstance, instanceCount);
 
-        commandBuffer.endRenderPass();
+        vulkanCommandBuffer.commandBuffer().endRenderPass();
 
         try {
-            commandBuffer.end();
+            vulkanCommandBuffer.commandBuffer().end();
         } catch (vk::SystemError err) {
             std::string errMsg = "Failed to record command buffer: ";
             GN_CORE_ERROR("{}{}", errMsg, err.what());
@@ -407,11 +394,11 @@ namespace Genesis {
         }
     }
 
-    void VulkanRenderer::renderObjects(vk::CommandBuffer commandBuffer, meshTypes objectType, uint32_t& startInstance, uint32_t instanceCount) {
+    void VulkanRenderer::renderObjects(VulkanCommandBuffer& vulkanCommandBuffer, meshTypes objectType, uint32_t& startInstance, uint32_t instanceCount) {
         int indexCount = m_vulkanMeshes.m_indexCounts.find(objectType)->second;
         int firstIndex = m_vulkanMeshes.m_firstIndices.find(objectType)->second;
-        m_materials[objectType]->use(commandBuffer, m_vulkanPipeline.layout());
-        commandBuffer.drawIndexed(indexCount, instanceCount, firstIndex, 0, startInstance);
+        m_materials[objectType]->use(vulkanCommandBuffer, m_vulkanPipeline.layout());
+        vulkanCommandBuffer.commandBuffer().drawIndexed(indexCount, instanceCount, firstIndex, 0, startInstance);
         startInstance += instanceCount;
     }
 
@@ -494,7 +481,7 @@ namespace Genesis {
                     2, 8, 9}};
         type = meshTypes::STAR;
         m_vulkanMeshes.consume(type, starVertices, indices);
-        m_vulkanMeshes.finalize(m_vulkanDevice, m_vkMainCommandBuffer);
+        m_vulkanMeshes.finalize(m_vulkanDevice, m_vulkanMainCommandBuffer);
 
         std::unordered_map<meshTypes, std::string> filenames = {
             {meshTypes::TRIANGLE, "assets/textures/face.jpg"},
@@ -507,7 +494,7 @@ namespace Genesis {
         for (const auto& [object, filename] : filenames) {
             m_materials[object] = new VulkanTexture(m_vulkanDevice,
                                                     filename,
-                                                    m_vkMainCommandBuffer,
+                                                    m_vulkanMainCommandBuffer,
                                                     m_vulkanDevice.graphicsQueue(),
                                                     m_vulkanSwapchain.meshDescriptorSetLayout(),
                                                     m_vulkanSwapchain.meshDescriptorPool());
