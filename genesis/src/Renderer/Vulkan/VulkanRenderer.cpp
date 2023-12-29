@@ -443,8 +443,13 @@ namespace Genesis {
             {meshTypes::GIRL, {"assets/models/girl.obj", "assets/models/girl.mtl"}},
             {meshTypes::SKULL, {"assets/models/skull.obj", "assets/models/skull.mtl"}}};
 
+        std::unordered_map<meshTypes, glm::mat4> preTransforms = {
+            {meshTypes::GROUND, glm::mat4(1.0f)},
+            {meshTypes::GIRL, glm::rotate(glm::mat4(1.0f), glm::radians(180.0f), glm::vec3(0.0f, 0.0f, 1.0f))},
+            {meshTypes::SKULL, glm::mat4(1.0f)}};
+
         for (auto pair : modelFilenames) {
-            ObjMesh model(pair.second[0], pair.second[1], glm::mat4(1.0f));
+            ObjMesh model(pair.second[0], pair.second[1], preTransforms[pair.first]);
             m_vulkanMeshes.consume(pair.first, model.vertices, model.indices);
         }
 

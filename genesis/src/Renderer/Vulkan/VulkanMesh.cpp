@@ -13,7 +13,7 @@ namespace Genesis {
     vk::VertexInputBindingDescription VulkanMesh::getBindingDescription() {
         vk::VertexInputBindingDescription bindingDescription{};
         bindingDescription.binding = 0;
-        bindingDescription.stride = 8 * sizeof(float);
+        bindingDescription.stride = 11 * sizeof(float);
         bindingDescription.inputRate = vk::VertexInputRate::eVertex;
 
         return bindingDescription;
@@ -23,6 +23,7 @@ namespace Genesis {
         std::vector<vk::VertexInputAttributeDescription> attributeDescriptions{};
         // push dummy attribute to the list 3 times, so that we can still use absolute indexing below
         vk::VertexInputAttributeDescription dummy;
+        attributeDescriptions.push_back(dummy);
         attributeDescriptions.push_back(dummy);
         attributeDescriptions.push_back(dummy);
         attributeDescriptions.push_back(dummy);
@@ -44,6 +45,12 @@ namespace Genesis {
         attributeDescriptions[2].location = 2;
         attributeDescriptions[2].format = vk::Format::eR32G32Sfloat;
         attributeDescriptions[2].offset = 6 * sizeof(float);
+
+        // Normal
+        attributeDescriptions[3].binding = 0;
+        attributeDescriptions[3].location = 3;
+        attributeDescriptions[3].format = vk::Format::eR32G32B32Sfloat;
+        attributeDescriptions[3].offset = 8 * sizeof(float);
 
         return attributeDescriptions;
     }

@@ -11,7 +11,7 @@ namespace Genesis {
     }
 
     void VulkanVertexMenagerie::consume(meshTypes type, std::vector<float> vertexData, std::vector<uint32_t> indexData) {
-        int vertexCount = static_cast<int>(vertexData.size() / 8);
+        int vertexCount = static_cast<int>(vertexData.size() / 11);
         int indexCount = static_cast<int>(indexData.size());
         int lastIndex = static_cast<int>(m_indexLump.size());
 

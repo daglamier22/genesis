@@ -115,5 +115,11 @@ namespace Genesis {
         }
         vertices.push_back(texcoord[0]);
         vertices.push_back(texcoord[1]);
+
+        // normal
+        glm::vec3 normal = vn[std::stol(v_vt_vn[2]) - 1];
+        vertices.push_back(normal[0]);
+        vertices.push_back(normal[1]);
+        vertices.push_back(normal[2]);
     }
 }  // namespace Genesis
