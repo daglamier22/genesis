@@ -1,5 +1,6 @@
 #include "ObjMesh.h"
 
+#include "Core/Logger.h"
 #include "Utils.h"
 
 namespace Genesis {
@@ -56,6 +57,7 @@ namespace Genesis {
             }
         }
         file.close();
+        GN_CORE_INFO("ObjMesh {} loaded successfully.", objFilepath);
     }
 
     void ObjMesh::readVertexData(const std::vector<std::string>& words) {
