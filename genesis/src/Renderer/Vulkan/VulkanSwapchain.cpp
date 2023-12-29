@@ -65,6 +65,115 @@ namespace Genesis {
         GN_CORE_INFO("Vulkan swapchain created successfully.");
     }
 
+    void VulkanSwapchain::createFrameResources(VulkanDevice& vulkanDevice, vk::RenderPass renderpass, vk::CommandPool commandPool, vk::CommandBuffer commandBuffer) {
+        createImageViews(vulkanDevice);
+        createColorResources(vulkanDevice);
+        createDepthResources(vulkanDevice, commandBuffer);
+        createFramebuffers(vulkanDevice, renderpass);
+        createCommandBuffers(vulkanDevice, commandPool);
+        createSyncObjects(vulkanDevice);
+        createDescriptorResources(vulkanDevice);
+        createFrameDescriptorPool(vulkanDevice);
+        createDescriptorSets(vulkanDevice);
+    }
+
+    void VulkanSwapchain::createDescriptorSetLayouts(VulkanDevice& vulkanDevice) {
+        vk::DescriptorSetLayoutBinding uboLayoutBinding = {};
+        uboLayoutBinding.binding = 0;
+        uboLayoutBinding.descriptorCount = 1;
+        uboLayoutBinding.descriptorType = vk::DescriptorType::eUniformBuffer;
+        uboLayoutBinding.stageFlags = vk::ShaderStageFlagBits::eVertex;
+
+        vk::DescriptorSetLayoutBinding storageBufferLayoutBinding = {};
+        storageBufferLayoutBinding.binding = 1;
+        storageBufferLayoutBinding.descriptorCount = 1;
+        storageBufferLayoutBinding.descriptorType = vk::DescriptorType::eStorageBuffer;
+        storageBufferLayoutBinding.stageFlags = vk::ShaderStageFlagBits::eVertex;
+
+        std::array<vk::DescriptorSetLayoutBinding, 2> frameBindings = {uboLayoutBinding, storageBufferLayoutBinding};
+        vk::DescriptorSetLayoutCreateInfo layoutInfo = {};
+        layoutInfo.flags = vk::DescriptorSetLayoutCreateFlags();
+        layoutInfo.bindingCount = static_cast<uint32_t>(frameBindings.size());
+        layoutInfo.pBindings = frameBindings.data();
+
+        try {
+            m_vkFrameDescriptorSetLayout = vulkanDevice.logicalDevice().createDescriptorSetLayout(layoutInfo);
+        } catch (vk::SystemError err) {
+            std::string errMsg = "Failed to create frame descriptor set layout: ";
+            GN_CORE_ERROR("{}{}", errMsg, err.what());
+            throw std::runtime_error(errMsg + err.what());
+        }
+
+        vk::DescriptorSetLayoutBinding samplerLayoutBinding = {};
+        samplerLayoutBinding.binding = 0;
+        samplerLayoutBinding.descriptorCount = 1;
+        samplerLayoutBinding.descriptorType = vk::DescriptorType::eCombinedImageSampler;
+        samplerLayoutBinding.stageFlags = vk::ShaderStageFlagBits::eFragment;
+
+        std::array<vk::DescriptorSetLayoutBinding, 1> meshBindings = {samplerLayoutBinding};
+        layoutInfo.flags = vk::DescriptorSetLayoutCreateFlags();
+        layoutInfo.bindingCount = static_cast<uint32_t>(meshBindings.size());
+        layoutInfo.pBindings = meshBindings.data();
+
+        try {
+            m_vkMeshDescriptorSetLayout = vulkanDevice.logicalDevice().createDescriptorSetLayout(layoutInfo);
+        } catch (vk::SystemError err) {
+            std::string errMsg = "Failed to create mesh descriptor set layout: ";
+            GN_CORE_ERROR("{}{}", errMsg, err.what());
+            throw std::runtime_error(errMsg + err.what());
+        }
+
+        GN_CORE_INFO("Vulkan descriptor set layouts created successfully.");
+    }
+
+    void VulkanSwapchain::createFrameDescriptorPool(VulkanDevice& vulkanDevice) {
+        std::array<vk::DescriptorPoolSize, 2> poolSizes{};
+        poolSizes[0].type = vk::DescriptorType::eUniformBuffer;
+        poolSizes[0].descriptorCount = static_cast<uint32_t>(m_swapchainFrames.size());
+        poolSizes[1].type = vk::DescriptorType::eStorageBuffer;
+        poolSizes[1].descriptorCount = static_cast<uint32_t>(m_swapchainFrames.size());
+        // poolSizes[1].type = vk::DescriptorType::eCombinedImageSampler;
+        // poolSizes[1].descriptorCount = static_cast<uint32_t>(m_maxFramesInFlight);
+
+        vk::DescriptorPoolCreateInfo poolInfo = {};
+        poolInfo.flags = vk::DescriptorPoolCreateFlags();
+        poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
+        poolInfo.pPoolSizes = poolSizes.data();
+        poolInfo.maxSets = static_cast<uint32_t>(m_swapchainFrames.size());
+
+        try {
+            m_vkFrameDescriptorPool = vulkanDevice.logicalDevice().createDescriptorPool(poolInfo);
+        } catch (vk::SystemError err) {
+            std::string errMsg = "Failed to create frame descriptor pool: ";
+            GN_CORE_ERROR("{}{}", errMsg, err.what());
+            throw std::runtime_error(errMsg + err.what());
+        }
+
+        GN_CORE_INFO("Vulkan frame descriptor pool created successfully.");
+    }
+
+    void VulkanSwapchain::createMeshDescriptorPool(VulkanDevice& vulkanDevice) {
+        std::array<vk::DescriptorPoolSize, 1> poolSizes{};
+        poolSizes[0].type = vk::DescriptorType::eCombinedImageSampler;
+        poolSizes[0].descriptorCount = static_cast<uint32_t>(m_swapchainFrames.size());
+
+        vk::DescriptorPoolCreateInfo poolInfo = {};
+        poolInfo.flags = vk::DescriptorPoolCreateFlags();
+        poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
+        poolInfo.pPoolSizes = poolSizes.data();
+        poolInfo.maxSets = static_cast<uint32_t>(m_swapchainFrames.size());
+
+        try {
+            m_vkMeshDescriptorPool = vulkanDevice.logicalDevice().createDescriptorPool(poolInfo);
+        } catch (vk::SystemError err) {
+            std::string errMsg = "Failed to create mesh descriptor pool: ";
+            GN_CORE_ERROR("{}{}", errMsg, err.what());
+            throw std::runtime_error(errMsg + err.what());
+        }
+
+        GN_CORE_INFO("Vulkan mesh descriptor pool created successfully.");
+    }
+
     void VulkanSwapchain::createImageViews(VulkanDevice& vulkanDevice) {
         std::vector<vk::Image> images = vulkanDevice.logicalDevice().getSwapchainImagesKHR(m_vkSwapchain);
         m_swapchainFrames.resize(images.size());
@@ -94,7 +203,7 @@ namespace Genesis {
         GN_CORE_INFO("Vulkan color resources created successfuly.");
     }
 
-    void VulkanSwapchain::createDepthResources(VulkanDevice& vulkanDevice, vk::CommandPool commandPool) {
+    void VulkanSwapchain::createDepthResources(VulkanDevice& vulkanDevice, vk::CommandBuffer commandBuffer) {
         m_vkDepthFormat = findDepthFormat(vulkanDevice);
 
         m_depthImage.createImage(vulkanDevice,
@@ -118,7 +227,7 @@ namespace Genesis {
                                            vk::ImageLayout::eUndefined,
                                            vk::ImageLayout::eDepthStencilAttachmentOptimal,
                                            1,
-                                           commandPool);
+                                           commandBuffer);
 
         GN_CORE_INFO("Vulkan depth resources created successfully.");
     }
@@ -177,6 +286,81 @@ namespace Genesis {
         GN_CORE_INFO("Vulkan semaphores and fences created successfully.");
     }
 
+    void VulkanSwapchain::createDescriptorResources(VulkanDevice& vulkanDevice) {
+        vk::DeviceSize cameraBufferSize = sizeof(UniformBufferObject);
+        vk::DeviceSize storageBufferSize = 1024 * sizeof(glm::mat4);
+
+        for (size_t i = 0; i < m_swapchainFrames.size(); i++) {
+            m_swapchainFrames[i].cameraDataBuffer.createBuffer(vulkanDevice,
+                                                               cameraBufferSize,
+                                                               vk::BufferUsageFlagBits::eUniformBuffer,
+                                                               vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent);
+            m_swapchainFrames[i].cameraDataWriteLocation = vulkanDevice.logicalDevice().mapMemory(m_swapchainFrames[i].cameraDataBuffer.memory(),
+                                                                                                  vk::DeviceSize(0),
+                                                                                                  cameraBufferSize,
+                                                                                                  vk::MemoryMapFlags());
+            m_swapchainFrames[i].modelBuffer.createBuffer(vulkanDevice,
+                                                          storageBufferSize,
+                                                          vk::BufferUsageFlagBits::eStorageBuffer,
+                                                          vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent);
+            m_swapchainFrames[i].modelBufferWriteLocation = vulkanDevice.logicalDevice().mapMemory(m_swapchainFrames[i].modelBuffer.memory(),
+                                                                                                   vk::DeviceSize(0),
+                                                                                                   storageBufferSize,
+                                                                                                   vk::MemoryMapFlags());
+            m_swapchainFrames[i].modelTransforms.reserve(1024);
+            for (int j = 0; j < 1024; ++j) {
+                m_swapchainFrames[i].modelTransforms.push_back(glm::mat4(1.0f));
+            }
+
+            m_swapchainFrames[i].uniformBufferDescriptor.buffer = m_swapchainFrames[i].cameraDataBuffer.buffer();
+            m_swapchainFrames[i].uniformBufferDescriptor.offset = 0;
+            m_swapchainFrames[i].uniformBufferDescriptor.range = sizeof(UniformBufferObject);
+
+            m_swapchainFrames[i].modelBufferDescriptor.buffer = m_swapchainFrames[i].modelBuffer.buffer();
+            m_swapchainFrames[i].modelBufferDescriptor.offset = 0;
+            m_swapchainFrames[i].modelBufferDescriptor.range = 1024 * sizeof(glm::mat4);
+        }
+
+        GN_CORE_INFO("Vulkan uniform buffers created successfully.");
+    }
+
+    void VulkanSwapchain::prepareFrame(VulkanDevice& vulkanDevice, uint32_t imageIndex, std::shared_ptr<Scene> scene) {
+        // static auto startTime = std::chrono::high_resolution_clock::now();
+
+        SwapChainFrame frame = m_swapchainFrames[imageIndex];
+
+        // auto currentTime = std::chrono::high_resolution_clock::now();
+        // float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
+
+        UniformBufferObject ubo{};
+        glm::vec3 eye = {1.0f, 0.0f, -1.0f};
+        glm::vec3 center = {0.0f, 0.0f, 0.0f};
+        glm::vec3 up = {0.0f, 0.0f, -1.0f};
+        ubo.view = glm::lookAt(eye, center, up);
+        ubo.projection = glm::perspective(glm::radians(45.0f), m_vkSwapchainExtent.width / (float)m_vkSwapchainExtent.height, 0.1f, 10.0f);
+        ubo.projection[1][1] *= -1;
+        // ubo.viewProjection = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+
+        frame.cameraData.view = ubo.view;
+        frame.cameraData.projection = ubo.projection;
+        frame.cameraData.viewProjection = ubo.projection * ubo.view;
+        memcpy(frame.cameraDataWriteLocation, &frame.cameraData, sizeof(UniformBufferObject));
+
+        size_t i = 0;
+        for (glm::vec3& position : scene->trianglePositions) {
+            frame.modelTransforms[i++] = glm::translate(glm::mat4(1.0f), position);
+        }
+        for (glm::vec3& position : scene->squarePositions) {
+            frame.modelTransforms[i++] = glm::translate(glm::mat4(1.0f), position);
+        }
+        for (glm::vec3& position : scene->starPositions) {
+            frame.modelTransforms[i++] = glm::translate(glm::mat4(1.0f), position);
+        }
+        memcpy(frame.modelBufferWriteLocation, frame.modelTransforms.data(), i * sizeof(glm::mat4));
+
+        writeDescriptorSets(vulkanDevice, imageIndex);
+    }
+
     vk::Semaphore VulkanSwapchain::createSemaphore(VulkanDevice& vulkanDevice) {
         vk::SemaphoreCreateInfo semaphoreInfo = {};
         semaphoreInfo.flags = vk::SemaphoreCreateFlags();
@@ -201,6 +385,73 @@ namespace Genesis {
             GN_CORE_ERROR("{}{}", errMsg, err.what());
             throw std::runtime_error(errMsg + err.what());
         }
+    }
+
+    void VulkanSwapchain::createDescriptorSets(VulkanDevice& vulkanDevice) {
+        std::vector<vk::DescriptorSetLayout> layouts(m_swapchainFrames.size(), m_vkFrameDescriptorSetLayout);
+        vk::DescriptorSetAllocateInfo allocInfo = {};
+        allocInfo.descriptorPool = m_vkFrameDescriptorPool;
+        allocInfo.descriptorSetCount = static_cast<uint32_t>(m_swapchainFrames.size());
+        allocInfo.pSetLayouts = layouts.data();
+
+        std::vector<vk::DescriptorSet> descriptorSets;
+        descriptorSets.resize(m_swapchainFrames.size());
+        try {
+            descriptorSets = vulkanDevice.logicalDevice().allocateDescriptorSets(allocInfo);
+        } catch (vk::SystemError err) {
+            std::string errMsg = "Failed to allocate descriptor sets: ";
+            GN_CORE_ERROR("{}{}", errMsg, err.what());
+            throw std::runtime_error(errMsg + err.what());
+        }
+
+        for (size_t i = 0; i < m_swapchainFrames.size(); i++) {
+            m_swapchainFrames[i].descriptorSet = descriptorSets[i];
+
+            // m_swapchainFrames[i].uniformBufferDescriptor.buffer = m_swapchainFrames[i].cameraDataBuffer.buffer();
+            // m_swapchainFrames[i].uniformBufferDescriptor.offset = 0;
+            // m_swapchainFrames[i].uniformBufferDescriptor.range = sizeof(UniformBufferObject);
+        }
+
+        GN_CORE_INFO("Vulkan descriptor sets created successfully.");
+    }
+
+    void VulkanSwapchain::writeDescriptorSets(VulkanDevice& vulkanDevice, uint32_t imageIndex) {
+        // vk::DescriptorImageInfo imageInfo = {};
+        // imageInfo.imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
+        // imageInfo.imageView = m_textureImage.imageView();
+        // imageInfo.sampler = m_vkTextureSampler;
+
+        std::array<vk::WriteDescriptorSet, 2> descriptorWrites{};
+        descriptorWrites[0].dstSet = m_swapchainFrames[imageIndex].descriptorSet;
+        descriptorWrites[0].dstBinding = 0;
+        descriptorWrites[0].dstArrayElement = 0;
+        descriptorWrites[0].descriptorType = vk::DescriptorType::eUniformBuffer;
+        descriptorWrites[0].descriptorCount = 1;
+        descriptorWrites[0].pBufferInfo = &m_swapchainFrames[imageIndex].uniformBufferDescriptor;
+
+        descriptorWrites[1].dstSet = m_swapchainFrames[imageIndex].descriptorSet;
+        descriptorWrites[1].dstBinding = 1;
+        descriptorWrites[1].dstArrayElement = 0;
+        descriptorWrites[1].descriptorType = vk::DescriptorType::eStorageBuffer;
+        descriptorWrites[1].descriptorCount = 1;
+        descriptorWrites[1].pBufferInfo = &m_swapchainFrames[imageIndex].modelBufferDescriptor;
+
+        // descriptorWrites[1].dstSet = m_vkDescriptorSets[i];
+        // descriptorWrites[1].dstBinding = 1;
+        // descriptorWrites[1].dstArrayElement = 0;
+        // descriptorWrites[1].descriptorType = vk::DescriptorType::eCombinedImageSampler;
+        // descriptorWrites[1].descriptorCount = 1;
+        // descriptorWrites[1].pImageInfo = &imageInfo;
+
+        try {
+            vulkanDevice.logicalDevice().updateDescriptorSets(static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
+        } catch (vk::SystemError err) {
+            std::string errMsg = "Failed to update descriptor sets: ";
+            GN_CORE_ERROR("{}{}", errMsg, err.what());
+            throw std::runtime_error(errMsg + err.what());
+        }
+
+        GN_CORE_TRACE2("Vulkan descriptor sets written successfully.");
     }
 
     vk::SurfaceFormatKHR VulkanSwapchain::chooseSwapSurfaceFormat(const std::vector<vk::SurfaceFormatKHR>& availableFormats) {
@@ -242,7 +493,7 @@ namespace Genesis {
         }
     }
 
-    void VulkanSwapchain::recreateSwapChain(VulkanDevice& vulkanDevice, const vk::SurfaceKHR& surface, std::shared_ptr<Window> window, vk::RenderPass renderpass, vk::CommandPool commandPool) {
+    void VulkanSwapchain::recreateSwapChain(VulkanDevice& vulkanDevice, const vk::SurfaceKHR& surface, std::shared_ptr<Window> window, vk::RenderPass renderPass, vk::CommandPool commandPool, vk::CommandBuffer commandBuffer) {
         std::shared_ptr<GLFWWindow> glfwwindow = std::dynamic_pointer_cast<GLFWWindow>(window);
         int width = (int)glfwwindow->getWindowWidth();
         int height = (int)glfwwindow->getWindowHeight();
@@ -255,12 +506,7 @@ namespace Genesis {
         cleanupSwapChain(vulkanDevice, commandPool);
 
         createSwapChain(vulkanDevice, surface, window);
-        createImageViews(vulkanDevice);
-        createColorResources(vulkanDevice);
-        createDepthResources(vulkanDevice, commandPool);
-        createFramebuffers(vulkanDevice, renderpass);
-        createCommandBuffers(vulkanDevice, commandPool);
-        createSyncObjects(vulkanDevice);
+        createFrameResources(vulkanDevice, renderPass, commandPool, commandBuffer);
 
         GN_CORE_INFO("Vulkan swapchain recreated.");
     }
@@ -275,13 +521,24 @@ namespace Genesis {
         m_colorImage.freeImageMemory(vulkanDevice);
 
         for (auto frame : m_swapchainFrames) {
+            vulkanDevice.logicalDevice().unmapMemory(frame.cameraDataBuffer.memory());
+            vulkanDevice.logicalDevice().freeMemory(frame.cameraDataBuffer.memory());
+            vulkanDevice.logicalDevice().destroyBuffer(frame.cameraDataBuffer.buffer());
+
+            vulkanDevice.logicalDevice().unmapMemory(frame.modelBuffer.memory());
+            vulkanDevice.logicalDevice().freeMemory(frame.modelBuffer.memory());
+            vulkanDevice.logicalDevice().destroyBuffer(frame.modelBuffer.buffer());
+
             vulkanDevice.logicalDevice().destroyFence(frame.inFlightFence);
             vulkanDevice.logicalDevice().destroySemaphore(frame.renderFinishedSemaphore);
             vulkanDevice.logicalDevice().destroySemaphore(frame.imageAvailableSemaphore);
+
             vulkanDevice.logicalDevice().freeCommandBuffers(commandPool, frame.commandBuffer);
             vulkanDevice.logicalDevice().destroyFramebuffer(frame.framebuffer);
             frame.vulkanImage.destroyImageView(vulkanDevice);
         }
+
+        vulkanDevice.logicalDevice().destroyDescriptorPool(m_vkFrameDescriptorPool);
 
         vulkanDevice.logicalDevice().destroySwapchainKHR(m_vkSwapchain);
     }

@@ -1,6 +1,7 @@
 #include "VulkanPipeline.h"
 
 #include "Core/Logger.h"
+#include "VulkanMesh.h"
 #include "VulkanShader.h"
 
 namespace Genesis {
@@ -10,7 +11,7 @@ namespace Genesis {
     VulkanPipeline::~VulkanPipeline() {
     }
 
-    void VulkanPipeline::createGraphicsPipeline(VulkanDevice& vulkanDevice, VulkanSwapchain& vulkanSwapchain, vk::DescriptorSetLayout& descriptorSetLayout) {
+    void VulkanPipeline::createGraphicsPipeline(VulkanDevice& vulkanDevice, VulkanSwapchain& vulkanSwapchain) {
         VulkanShader vertShader(vulkanDevice, "assets/shaders/shader.vert.spv");
         VulkanShader fragShader(vulkanDevice, "assets/shaders/shader.frag.spv");
 
@@ -28,8 +29,8 @@ namespace Genesis {
 
         std::vector<vk::PipelineShaderStageCreateInfo> shaderStages = {vertShaderStageInfo, fragShaderStageInfo};
 
-        auto bindingDescription = Vertex::getBindingDescription();
-        auto attributeDescriptions = Vertex::getAttributeDescriptions();
+        auto bindingDescription = VulkanMesh::getBindingDescription();
+        auto attributeDescriptions = VulkanMesh::getAttributeDescriptions();
         vk::PipelineVertexInputStateCreateInfo vertexInputInfo = {};
         vertexInputInfo.flags = vk::PipelineVertexInputStateCreateFlags();
         vertexInputInfo.vertexBindingDescriptionCount = 1;
@@ -69,7 +70,7 @@ namespace Genesis {
         rasterizer.polygonMode = vk::PolygonMode::eFill;
         rasterizer.lineWidth = 1.0f;
         rasterizer.cullMode = vk::CullModeFlagBits::eBack;
-        rasterizer.frontFace = vk::FrontFace::eCounterClockwise;
+        rasterizer.frontFace = vk::FrontFace::eClockwise;
         rasterizer.depthBiasEnable = VK_FALSE;
         rasterizer.depthBiasConstantFactor = 0.0f;  // Optional
         rasterizer.depthBiasClamp = 0.0f;           // Optional
@@ -116,20 +117,20 @@ namespace Genesis {
         colorBlending.blendConstants[2] = 0.0f;  // Optional
         colorBlending.blendConstants[3] = 0.0f;  // Optional
 
-        std::vector<vk::DynamicState> dynamicStates = {
-            vk::DynamicState::eViewport,
-            vk::DynamicState::eScissor};
-        vk::PipelineDynamicStateCreateInfo dynamicState = {};
-        dynamicState.flags = vk::PipelineDynamicStateCreateFlags();
-        dynamicState.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size());
-        dynamicState.pDynamicStates = dynamicStates.data();
+        // std::vector<vk::DynamicState> dynamicStates = {
+        //     vk::DynamicState::eViewport,
+        //     vk::DynamicState::eScissor};
+        // vk::PipelineDynamicStateCreateInfo dynamicState = {};
+        // dynamicState.flags = vk::PipelineDynamicStateCreateFlags();
+        // dynamicState.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size());
+        // dynamicState.pDynamicStates = dynamicStates.data();
 
+        std::vector<vk::DescriptorSetLayout> descriptorSetLayouts = {vulkanSwapchain.frameDescriptorSetLayout(), vulkanSwapchain.meshDescriptorSetLayout()};
         vk::PipelineLayoutCreateInfo pipelineLayoutInfo = {};
         pipelineLayoutInfo.flags = vk::PipelineLayoutCreateFlags();
-        pipelineLayoutInfo.setLayoutCount = 1;
-        pipelineLayoutInfo.pSetLayouts = &descriptorSetLayout;
-        pipelineLayoutInfo.pushConstantRangeCount = 0;     // Optional
-        pipelineLayoutInfo.pPushConstantRanges = nullptr;  // Optional
+        pipelineLayoutInfo.setLayoutCount = descriptorSetLayouts.size();
+        pipelineLayoutInfo.pSetLayouts = descriptorSetLayouts.data();
+        pipelineLayoutInfo.pushConstantRangeCount = 0;
 
         try {
             m_vkPipelineLayout = vulkanDevice.logicalDevice().createPipelineLayout(pipelineLayoutInfo);
@@ -150,7 +151,7 @@ namespace Genesis {
         pipelineInfo.pMultisampleState = &multisampling;
         pipelineInfo.pDepthStencilState = &depthStencil;
         pipelineInfo.pColorBlendState = &colorBlending;
-        pipelineInfo.pDynamicState = &dynamicState;
+        // pipelineInfo.pDynamicState = &dynamicState;
         pipelineInfo.layout = m_vkPipelineLayout;
         pipelineInfo.renderPass = m_vkRenderPass;
         pipelineInfo.subpass = 0;

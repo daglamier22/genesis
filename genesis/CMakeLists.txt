@@ -22,6 +22,11 @@ add_library(genesis
     src/Renderer/Vulkan/VulkanImage.cpp src/Renderer/Vulkan/VulkanImage.h
     src/Renderer/Vulkan/VulkanShader.cpp src/Renderer/Vulkan/VulkanShader.h
     src/Renderer/Vulkan/VulkanPipeline.cpp src/Renderer/Vulkan/VulkanPipeline.h
+    src/Core/Scene.cpp src/Core/Scene.h
+    src/Renderer/Vulkan/VulkanMesh.cpp src/Renderer/Vulkan/VulkanMesh.h
+    src/Renderer/Vulkan/VulkanBuffer.cpp src/Renderer/Vulkan/VulkanBuffer.h
+    src/Renderer/Vulkan/VulkanVertexMenagerie.cpp src/Renderer/Vulkan/VulkanVertexMenagerie.h
+    src/Renderer/Vulkan/VulkanTexture.cpp src/Renderer/Vulkan/VulkanTexture.h
 )
 
 target_link_libraries(genesis quill xcb xcb-util xcb-keysyms glfw glm vulkan)

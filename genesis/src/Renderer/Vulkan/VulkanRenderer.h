@@ -3,14 +3,18 @@
 #include "Core/EventSystem.h"
 #include "Core/Logger.h"
 #include "Core/Renderer.h"
+#include "VulkanBuffer.h"
 #include "VulkanDevice.h"
+#include "VulkanMesh.h"
 #include "VulkanPipeline.h"
 #include "VulkanSwapchain.h"
+#include "VulkanTexture.h"
 #include "VulkanTypes.h"
+#include "VulkanVertexMenagerie.h"
 
 namespace Genesis {
-    const std::string MODEL_PATH = "assets/models/viking_room.obj";
-    const std::string TEXTURE_PATH = "assets/textures/viking_room.png";
+    // const std::string MODEL_PATH = "assets/models/viking_room.obj";
+    // const std::string TEXTURE_PATH = "assets/textures/viking_room.png";
 
     class VulkanRenderer : public Renderer {
         public:
@@ -21,7 +25,7 @@ namespace Genesis {
             VulkanRenderer& operator=(const VulkanRenderer&) = delete;
 
             void init();
-            bool drawFrame();
+            bool drawFrame(std::shared_ptr<Scene> scene);
             void shutdown();
 
             void waitForIdle();
@@ -38,32 +42,12 @@ namespace Genesis {
 
             void createCommandPool();
             void createCommandBuffers();
-            void renderFrame();
-            void recordCommandBuffer(vk::CommandBuffer commandBuffer, uint32_t imageIndex);
+            void renderFrame(std::shared_ptr<Scene> scene);
+            void recordCommandBuffer(vk::CommandBuffer commandBuffer, uint32_t imageIndex, std::shared_ptr<Scene> scene);
+            void renderObjects(vk::CommandBuffer commandBuffer, meshTypes objectType, uint32_t& startInstance, uint32_t instanceCount);
 
-            void createDescriptorSetLayout(VulkanDevice& vulkanDevice);
-
-            void createTextureImage();
-            void generateMipmaps(vk::Image image, vk::Format imageFormat, int32_t texWidth, int32_t texHeight, uint32_t mipLevels);
-            void createTextureImageView();
-            void createTextureSampler();
-            void copyBufferToImage(vk::Buffer buffer, vk::Image image, uint32_t width, uint32_t height);
-
-            void loadModel();
-            void createVertexBuffer();
-            void createIndexBuffer();
-            void createUniformBuffers();
-            void createDescriptorPool();
-            void createDescriptorSets();
-            void updateUniformBuffer(uint32_t currentImage);
-            void createBuffer(vk::DeviceSize size,
-                              vk::BufferUsageFlags usage,
-                              vk::MemoryPropertyFlags properties,
-                              vk::Buffer& buffer,
-                              vk::DeviceMemory& bufferMemory);
-            vk::CommandBuffer beginSingleTimeCommands();
-            void endSingleTimeCommands(vk::CommandBuffer commandBuffer);
-            void copyBuffer(vk::Buffer srcBuffer, vk::Buffer dstBuffer, vk::DeviceSize size);
+            // void loadModel();
+            void createAssets();
 
             vk::Instance m_vkInstance{nullptr};
             vk::SurfaceKHR m_vkSurface;
@@ -75,27 +59,9 @@ namespace Genesis {
             vk::CommandPool m_vkCommandPool;
             vk::CommandBuffer m_vkMainCommandBuffer;
 
-            vk::DescriptorSetLayout m_vkDescriptorSetLayout;
-            std::vector<vk::DescriptorSet> m_vkDescriptorSets;
+            VulkanVertexMenagerie m_vulkanMeshes;
+            std::unordered_map<meshTypes, VulkanTexture*> m_materials;
 
-            uint32_t m_vkMipLevels;
-            VulkanImage m_textureImage;
-            vk::Sampler m_vkTextureSampler;
-
-            std::vector<Vertex> m_vertices;
-            std::vector<uint32_t> m_indices;
-            vk::Buffer m_vkVertexBuffer;
-            vk::DeviceMemory m_vkVertexBufferMemory;
-            vk::Buffer m_vkIndexBuffer;
-            vk::DeviceMemory m_vkIndexBufferMemory;
-
-            std::vector<vk::Buffer> m_vkUniformBuffers;
-            std::vector<vk::DeviceMemory> m_vkUniformBuffersMemory;
-            std::vector<void*> m_vkUniformBuffersMapped;
-
-            vk::DescriptorPool m_vkDescriptorPool;
-
-            uint32_t m_maxFramesInFlight;
             uint32_t m_currentFrame = 0;
             bool m_framebufferResized = false;
 

@@ -208,6 +208,6 @@ namespace Genesis {
         }
 
         GN_CORE_ERROR("Failed to find suitable memory type.");
-        return 999999;
+        return 0;
     }
 }  // namespace Genesis

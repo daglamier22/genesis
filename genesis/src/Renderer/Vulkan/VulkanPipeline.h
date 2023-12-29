@@ -17,7 +17,7 @@ namespace Genesis {
             vk::PipelineLayout const& layout() const { return m_vkPipelineLayout; }
             vk::RenderPass const& renderPass() const { return m_vkRenderPass; }
 
-            void createGraphicsPipeline(VulkanDevice& vulkanDevice, VulkanSwapchain& vulkanSwapchain, vk::DescriptorSetLayout& descriptorSetLayout);
+            void createGraphicsPipeline(VulkanDevice& vulkanDevice, VulkanSwapchain& vulkanSwapchain);
             void createRenderPass(VulkanDevice& vulkanDevice, VulkanSwapchain& vulkanSwapchain);
 
         private:

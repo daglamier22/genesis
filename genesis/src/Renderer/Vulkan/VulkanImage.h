@@ -34,7 +34,9 @@ namespace Genesis {
                                        vk::ImageLayout oldLayout,
                                        vk::ImageLayout newLayout,
                                        uint32_t mipLevels,
-                                       vk::CommandPool commandPool);
+                                       vk::CommandBuffer commandBuffer);
+            void copyBufferToImage(VulkanDevice& vulkanDevice, vk::Buffer buffer, uint32_t width, uint32_t height, vk::CommandBuffer commandBuffer);
+
             void destroyImage(VulkanDevice& vulkanDevice);
             void destroyImageView(VulkanDevice& vulkanDevice);
             void freeImageMemory(VulkanDevice& vulkanDevice);
@@ -42,8 +44,8 @@ namespace Genesis {
         private:
             bool hasStencilComponent(vk::Format format);
 
-            vk::CommandBuffer beginSingleTimeCommands(VulkanDevice& vulkanDevice, vk::CommandPool commandPool);
-            void endSingleTimeCommands(vk::CommandBuffer commandBuffer, VulkanDevice& vulkanDevice, vk::CommandPool commandPool);
+            void beginSingleTimeCommands(VulkanDevice& vulkanDevice, vk::CommandBuffer commandBuffer);
+            void endSingleTimeCommands(VulkanDevice& vulkanDevice, vk::CommandBuffer commandBuffer);
 
             vk::Image m_vkImage = {};
             vk::ImageView m_vkImageView;
