@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Scene.h"
 #include "Window.h"
 
 namespace Genesis {
@@ -11,7 +12,7 @@ namespace Genesis {
             std::shared_ptr<Window> getWindow() const { return m_window; }
 
             virtual void init() = 0;
-            virtual bool drawFrame() = 0;
+            virtual bool drawFrame(std::shared_ptr<Scene>) = 0;
             virtual void shutdown() = 0;
             virtual void waitForIdle() = 0;
 

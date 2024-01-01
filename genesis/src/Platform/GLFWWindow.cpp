@@ -152,6 +152,16 @@ namespace Genesis {
         return true;
     }
 
+    const char** GLFWWindow::getRequiredVulkanInstanceExtensions(uint32_t* glfwExtensionCount) {
+        return glfwGetRequiredInstanceExtensions(glfwExtensionCount);
+    }
+
+    void GLFWWindow::updateTitle(double currentFps) {
+        std::stringstream title;
+        title << m_title << " running at " << currentFps << " fps.";
+        glfwSetWindowTitle(m_window, title.str().c_str());
+    }
+
     Key GLFWWindow::translateKey(int key) {
         switch (key) {
             case GLFW_KEY_BACKSPACE:
