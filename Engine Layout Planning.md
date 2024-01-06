@@ -40,5 +40,17 @@ Resource Manager
 Audio System
 
 
-
+Scene
+    name
+    nextScene
+    nodeList
+        nodeId
+        parentId
+        location
+        nodeType
+        modelName
+    resourceList
+        modelName
+        fileName
+        
 
