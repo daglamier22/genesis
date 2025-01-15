@@ -1,7 +1,7 @@
 {
     "editor.tabSize": 4,
     "files.insertFinalNewline": true,
-    "workbench.colorTheme": "Tokyo Night",
+    "workbench.colorTheme": "Catppuccin Mocha",
     "todohighlight.isEnable": true,
     "todohighlight.keywords": [
         {
